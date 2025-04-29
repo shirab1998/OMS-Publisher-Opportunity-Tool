@@ -99,14 +99,26 @@ if not geo_response.ok:
     st.write(f"⚠️ Skipped: SimilarWeb geo error for {domain} — HTTP {geo_response.status_code}")
     continue
 
+try:
+    total_visits = traffic_response.json().get("visits", 0)
+    geo_data = geo_response.json().get("country_distribution", [])
+except Exception as json_error:
+    st.write(f"⚠️ Skipped: JSON parse error for {domain} — {json_error}")
+    continue
+
+if not traffic_response.ok:
+    st.write(f"⚠️ Skipped: SimilarWeb traffic error for {domain} — HTTP {traffic_response.status_code}")
+    continue
+if not geo_response.ok:
+    st.write(f"⚠️ Skipped: SimilarWeb geo error for {domain} — HTTP {geo_response.status_code}")
+    continue
+
                         try:
     total_visits = traffic_response.json().get("visits", 0)
     geo_data = geo_response.json().get("country_distribution", [])
 except Exception as json_error:
     st.write(f"⚠️ Skipped: JSON parse error for {domain} — {json_error}")
     continue
-                        geo_data = geo_response.json().get("country_distribution", [])
-
                         tier1_visits = sum([
                             c.get("visits", 0)
                             for c in geo_data if c.get("country", "").lower() in TIER1_COUNTRIES
