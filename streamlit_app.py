@@ -22,6 +22,12 @@ pub_name = st.text_input("Publisher Name (e.g., connatix.com)")
 pub_id = st.text_input("Publisher ID (e.g., 1536788745730056)")
 sample_direct_line = st.text_input("Sample Direct Line (e.g., connatix.com, 12345, DIRECT)")
 
+# Store results in session_state
+if "result_text" not in st.session_state:
+    st.session_state.result_text = ""
+if "results_ready" not in st.session_state:
+    st.session_state.results_ready = False
+
 if st.button("Find Opportunities"):
     if not all([pub_domain, pub_name, pub_id, sample_direct_line]):
         st.error("Please fill out all fields!")
@@ -49,66 +55,77 @@ if st.button("Find Opportunities"):
                 good_traffic = []
 
                 for domain in domains:
-                    ads_url = f"https://{domain}/ads.txt"
-                    try:
-                        ads_response = requests.get(ads_url, timeout=10)
-                        ads_lines = ads_response.text.lower().splitlines()
+    st.write(f"\n🔍 Checking domain: {domain}")
+    ads_url = f"https://{domain}/ads.txt"
+    try:
+        ads_response = requests.get(ads_url, timeout=10)
+        ads_lines = ads_response.text.lower().splitlines()
 
-                        has_direct = any(
-    line.strip().lower().startswith(pub_name.lower()) and "direct" in line.lower()
-    for line in ads_lines
-)
-                        if not has_direct:
-                            continue
+        has_direct = any(
+            line.strip().lower().startswith(pub_name.lower()) and "direct" in line.lower()
+            for line in ads_lines
+        )
+        if not has_direct:
+            st.write(f"❌ Skipped: No direct line for {pub_name}")
+            continue
+        else:
+            st.write("✅ Found direct line")
 
-                        oms_lines = [line for line in ads_lines if "onlinemediasolutions.com" in line and "direct" in line]
+        oms_lines = [line for line in ads_lines if "onlinemediasolutions.com" in line and "direct" in line]
 
-                        classified = None
-                        for line in oms_lines:
-                            parts = [p.strip() for p in line.split(",")]
-                            if len(parts) >= 4 and parts[0] == "onlinemediasolutions.com":
-                                if parts[1] == pub_id:
-                                    classified = "Skip"
-                                    break
-                                else:
-                                    classified = "Best"
+        classified = None
+        for line in oms_lines:
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 4 and parts[0] == "onlinemediasolutions.com":
+                if parts[1] == pub_id:
+                    classified = "Skip"
+                    break
+                else:
+                    classified = "Best"
 
-                        if classified == "Skip":
-                            continue
-                        elif classified == "Best":
-                            traffic_category = "Best"
-                        else:
-                            traffic_category = "Good"
+        if classified == "Skip":
+            st.write("⛔ Skipped: Already buying from this publisher via OMS")
+            continue
+        elif classified == "Best":
+            traffic_category = "Best"
+        else:
+            traffic_category = "Good"
 
-                        traffic_url = f"{SIMILARWEB_BASE_URL}{domain}/traffic-sources/overview?api_key={SIMILARWEB_API_KEY}&country=world"
-                        geo_url = f"{SIMILARWEB_BASE_URL}{domain}/traffic-sources/geo-distribution?api_key={SIMILARWEB_API_KEY}"
+        traffic_url = f"{SIMILARWEB_BASE_URL}{domain}/traffic-sources/overview?api_key={SIMILARWEB_API_KEY}&country=world"
+        geo_url = f"{SIMILARWEB_BASE_URL}{domain}/traffic-sources/geo-distribution?api_key={SIMILARWEB_API_KEY}"
 
-                        traffic_response = requests.get(traffic_url, timeout=10)
-                        geo_response = requests.get(geo_url, timeout=10)
+        traffic_response = requests.get(traffic_url, timeout=10)
+        geo_response = requests.get(geo_url, timeout=10)
 
-                        total_visits = traffic_response.json().get("visits", 0)
-                        geo_data = geo_response.json().get("country_distribution", [])
+        total_visits = traffic_response.json().get("visits", 0)
+        geo_data = geo_response.json().get("country_distribution", [])
 
-                        tier1_visits = sum([
-                            c.get("visits", 0)
-                            for c in geo_data if c.get("country", "").lower() in TIER1_COUNTRIES
-                        ])
+        tier1_visits = sum([
+            c.get("visits", 0)
+            for c in geo_data if c.get("country", "").lower() in TIER1_COUNTRIES
+        ])
 
-                        if tier1_visits >= 500_000:
-                            record = {
-                                "Domain": domain,
-                                "Total Visits": total_visits,
-                                "Tier1 Visits": tier1_visits,
-                                "Traffic Category": traffic_category
-                            }
-                            if traffic_category == "Best":
-                                best_traffic.append(record)
-                            else:
-                                good_traffic.append(record)
+        st.write(f"🌍 Traffic: {total_visits:,} total | {tier1_visits:,} Tier1")
 
-                        time.sleep(1)
+        if tier1_visits >= 500_000:
+            record = {
+                "Domain": domain,
+                "Total Visits": total_visits,
+                "Tier1 Visits": tier1_visits,
+                "Traffic Category": traffic_category
+            }
+            if traffic_category == "Best":
+                best_traffic.append(record)
+            else:
+                good_traffic.append(record)
+        else:
+            st.write("⚠️ Skipped: Not enough Tier1 traffic")
 
-                    except Exception:
+        time.sleep(1)
+
+    except Exception as e:
+        st.write(f"❌ Error checking {domain}: {e}")
+        continue
                         continue
 
                 best_traffic = sorted(best_traffic, key=lambda x: x["Tier1 Visits"], reverse=True)
@@ -130,16 +147,19 @@ if st.button("Find Opportunities"):
                     result_lines.append(line)
                     count += 1
 
-                result_text = "\n".join(result_lines)
+                st.session_state.result_text = "
+".join(result_lines)
+st.session_state.results_ready = True
 
                 # Display full text output
-                st.subheader("📄 Full Result Preview")
-                st.text(result_text)
+                if st.session_state.results_ready:
+    st.subheader("📄 Full Result Preview")
+    st.text(st.session_state.result_text)
 
                 # Download Button
                 st.download_button(
                     label="📥 Download Results as .txt",
-                    data=result_text,
+                    data=st.session_state.result_text,
                     file_name=f"{pub_name}_{pub_id}_opportunities.txt",
                     mime="text/plain"
                 )
@@ -163,7 +183,9 @@ if st.button("Find Opportunities"):
                         body = (
                             f"Hi!\n\n"
                             f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!\n\n"
-                            f"{result_text}\n\n"
+                            f"{st.session_state.result_text}
+
+"
                             f"Warm regards,\nShira"
                         )
                         msg.set_content(body)
