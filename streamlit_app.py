@@ -27,6 +27,8 @@ if "result_text" not in st.session_state:
     st.session_state.result_text = ""
 if "results_ready" not in st.session_state:
     st.session_state.results_ready = False
+if "skipped_log" not in st.session_state:
+    st.session_state.skipped_log = []
 
 if st.button("Find Opportunities"):
     if not all([pub_domain, pub_name, pub_id, sample_direct_line]):
@@ -34,6 +36,7 @@ if st.button("Find Opportunities"):
     else:
         with st.spinner('Processing...'):
             try:
+                st.session_state.skipped_log = []
                 sellers_url = f"https://{pub_domain}/sellers.json"
                 sellers_response = requests.get(sellers_url, timeout=10)
                 sellers_data = sellers_response.json()
@@ -62,9 +65,8 @@ if st.button("Find Opportunities"):
                         )
                         if not has_direct:
                             st.write(f"❌ Skipped: No direct line for {pub_name}")
+                            st.session_state.skipped_log.append((domain, "No direct line"))
                             continue
-                        else:
-                            st.write("✅ Found direct line")
 
                         oms_lines = [line for line in ads_lines if "onlinemediasolutions.com" in line and "direct" in line]
 
@@ -80,6 +82,7 @@ if st.button("Find Opportunities"):
 
                         if classified == "Skip":
                             st.write("⛔ Skipped: Already buying from this publisher via OMS")
+                            st.session_state.skipped_log.append((domain, "Already buying via OMS"))
                             continue
                         elif classified == "Best":
                             traffic_category = "Best"
@@ -92,9 +95,11 @@ if st.button("Find Opportunities"):
 
                             if not traffic_response.ok:
                                 st.write(f"⚠️ Skipped: SimilarWeb traffic error for {domain} — HTTP {traffic_response.status_code}")
+                                st.session_state.skipped_log.append((domain, f"SW traffic error {traffic_response.status_code}"))
                                 continue
                             if not geo_response.ok:
                                 st.write(f"⚠️ Skipped: SimilarWeb geo error for {domain} — HTTP {geo_response.status_code}")
+                                st.session_state.skipped_log.append((domain, f"SW geo error {geo_response.status_code}"))
                                 continue
 
                             total_visits = traffic_response.json().get("visits", 0)
@@ -102,6 +107,7 @@ if st.button("Find Opportunities"):
 
                         except Exception as json_error:
                             st.write(f"⚠️ Skipped: JSON parse error for {domain} — {json_error}")
+                            st.session_state.skipped_log.append((domain, f"JSON error: {json_error}"))
                             continue
 
                         tier1_visits = sum([
@@ -124,11 +130,13 @@ if st.button("Find Opportunities"):
                                 good_traffic.append(record)
                         else:
                             st.write("⚠️ Skipped: Not enough Tier1 traffic")
+                            st.session_state.skipped_log.append((domain, "Not enough Tier1 traffic"))
 
                         time.sleep(1)
 
                     except Exception as e:
                         st.write(f"❌ Error checking {domain}: {e}")
+                        st.session_state.skipped_log.append((domain, f"Request error: {e}"))
                         continue
 
                 best_traffic = sorted(best_traffic, key=lambda x: x["Tier1 Visits"], reverse=True)
@@ -163,6 +171,15 @@ if st.button("Find Opportunities"):
                     file_name=f"{pub_name}_{pub_id}_opportunities.txt",
                     mime="text/plain"
                 )
+
+                # Show skipped domain report
+                if st.session_state.skipped_log:
+                    st.subheader("❗ Skipped Domains Report")
+                    skipped_table = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
+                    st.dataframe(skipped_table)
+
+                    skipped_csv = skipped_table.to_csv(index=False)
+                    st.download_button("📥 Download Skipped Domains", data=skipped_csv, file_name="skipped_domains.csv", mime="text/csv")
 
                 st.subheader("📧 Send Results via Email")
                 email_to = st.text_input("Enter email address to send to")
