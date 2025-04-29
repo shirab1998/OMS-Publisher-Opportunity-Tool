@@ -54,7 +54,10 @@ if st.button("Find Opportunities"):
                         ads_response = requests.get(ads_url, timeout=10)
                         ads_lines = ads_response.text.lower().splitlines()
 
-                        has_direct = any(direct_pattern.match(line.strip()) for line in ads_lines)
+                        has_direct = any(
+    line.strip().lower().startswith(pub_name.lower()) and "direct" in line.lower()
+    for line in ads_lines
+)
                         if not has_direct:
                             continue
 
