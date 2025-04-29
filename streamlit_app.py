@@ -3,6 +3,11 @@ import requests
 import pandas as pd
 import re
 import time
+from datetime import datetime
+from io import StringIO
+import smtplib
+from email.message import EmailMessage
+import os
 
 # --- SIMILARWEB SETTINGS ---
 SIMILARWEB_API_KEY = "80c301fd23bb43b0a38aadaa25814ac4"
@@ -23,7 +28,6 @@ if st.button("Find Opportunities"):
     else:
         with st.spinner('Processing...'):
             try:
-                # Step 1: Pull sellers.json
                 sellers_url = f"https://{pub_domain}/sellers.json"
                 sellers_response = requests.get(sellers_url, timeout=10)
                 sellers_data = sellers_response.json()
@@ -36,14 +40,8 @@ if st.button("Find Opportunities"):
 
                 st.write(f"Found {len(domains)} domains to check.")
 
-                # Step 2: Direct Line pattern
                 direct_pattern = re.compile(
                     rf"^{re.escape(pub_name)}\s*,\s*[^,]+\s*,\s*direct(\s*,\s*[^,]+)?$",
-                    re.IGNORECASE
-                )
-
-                oms_pattern = re.compile(
-                    r"^onlinemediasolutions\.com\s*,\s*([^,]+)\s*,\s*direct\s*,\s*b3868b187e4b6402$",
                     re.IGNORECASE
                 )
 
@@ -79,7 +77,6 @@ if st.button("Find Opportunities"):
                         else:
                             traffic_category = "Good"
 
-                        # Step 3: Pull SimilarWeb Traffic only now
                         traffic_url = f"{SIMILARWEB_BASE_URL}{domain}/traffic-sources/overview?api_key={SIMILARWEB_API_KEY}&country=world"
                         geo_url = f"{SIMILARWEB_BASE_URL}{domain}/traffic-sources/geo-distribution?api_key={SIMILARWEB_API_KEY}"
 
@@ -118,12 +115,60 @@ if st.button("Find Opportunities"):
                 st.subheader(f"{pub_name} ({pub_id}) Opportunities:")
 
                 count = 1
+                result_lines = [f"{pub_name} ({pub_id}) Opportunities:\n"]
                 for row in best_traffic:
-                    st.write(f"{count}. {row['Domain']} (Tier1 Visits: {row['Tier1 Visits']:,}) [Best Traffic]")
+                    line = f"{count}. {row['Domain']} (Tier1 Visits: {row['Tier1 Visits']:,}) [Best Traffic]"
+                    st.write(line)
+                    result_lines.append(line)
                     count += 1
                 for row in good_traffic:
-                    st.write(f"{count}. {row['Domain']} (Tier1 Visits: {row['Tier1 Visits']:,}) [Good Traffic]")
+                    line = f"{count}. {row['Domain']} (Tier1 Visits: {row['Tier1 Visits']:,}) [Good Traffic]"
+                    st.write(line)
+                    result_lines.append(line)
                     count += 1
+
+                result_text = "\n".join(result_lines)
+
+                # Download Button
+                st.download_button(
+                    label="📥 Download Results as .txt",
+                    data=result_text,
+                    file_name=f"{pub_name}_{pub_id}_opportunities.txt",
+                    mime="text/plain"
+                )
+
+                # Email Option
+                st.subheader("📧 Send Results via Email")
+                email_to = st.text_input("Enter email address to send to")
+                send_button = st.button("Send Email")
+
+                if send_button and email_to:
+                    try:
+                        EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+                        EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+                        msg = EmailMessage()
+                        msg["Subject"] = f"{pub_name} ({pub_id}) Opportunities"
+                        msg["From"] = EMAIL_ADDRESS
+                        msg["To"] = email_to
+
+                        date_str = datetime.now().strftime("%B %d, %Y %H:%M")
+                        body = (
+                            f"Hi!\n\n"
+                            f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!\n\n"
+                            f"{result_text}\n\n"
+                            f"Warm regards,\nShira"
+                        )
+                        msg.set_content(body)
+
+                        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                            smtp.send_message(msg)
+
+                        st.success("Email sent successfully!")
+
+                    except Exception as e:
+                        st.error(f"Failed to send email: {e}")
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")
