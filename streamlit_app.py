@@ -92,20 +92,8 @@ if st.button("Find Opportunities"):
                         traffic_response = requests.get(traffic_url, timeout=10)
 geo_response = requests.get(geo_url, timeout=10)
 
-if not traffic_response.ok:
-    st.write(f"⚠️ Skipped: SimilarWeb traffic error for {domain} — HTTP {traffic_response.status_code}")
-    continue
-if not geo_response.ok:
-    st.write(f"⚠️ Skipped: SimilarWeb geo error for {domain} — HTTP {geo_response.status_code}")
-    continue
-
 try:
-    total_visits = traffic_response.json().get("visits", 0)
-    geo_data = geo_response.json().get("country_distribution", [])
-except Exception as json_error:
-    st.write(f"⚠️ Skipped: JSON parse error for {domain} — {json_error}")
-    continue
-
+    
 if not traffic_response.ok:
     st.write(f"⚠️ Skipped: SimilarWeb traffic error for {domain} — HTTP {traffic_response.status_code}")
     continue
