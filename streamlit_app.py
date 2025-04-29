@@ -129,6 +129,10 @@ if st.button("Find Opportunities"):
 
                 result_text = "\n".join(result_lines)
 
+                # Display full text output
+                st.subheader("📄 Full Result Preview")
+                st.text(result_text)
+
                 # Download Button
                 st.download_button(
                     label="📥 Download Results as .txt",
