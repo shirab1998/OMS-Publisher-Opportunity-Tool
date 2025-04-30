@@ -146,6 +146,7 @@ if st.button("Find Opportunities"):
                             for line in ads_lines
                         )
 
+
                         if not has_direct:
                             st.write(f"❌ Skipped: No direct line for {pub_name}")
                             st.session_state.skipped_log.append((domain, "No direct line"))
