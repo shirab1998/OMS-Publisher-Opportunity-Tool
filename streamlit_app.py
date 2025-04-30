@@ -174,10 +174,18 @@ if st.button("Find Opportunities"):
 
                         date_str = datetime.now().strftime("%B %d, %Y %H:%M")
                         body = (
-                            f"Hi!
+    f"Hi!
 
 "
-                            f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
+    f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
+
+"
+    f"{st.session_state.result_text}
+
+"
+    f"Warm regards,
+Your Automation Bot"
+) opportunities generated at {date_str}!
 
 "
                             f"{st.session_state.result_text}
