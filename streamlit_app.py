@@ -170,10 +170,18 @@ if st.button("Find Opportunities"):
 
                         date_str = datetime.now().strftime("%B %d, %Y %H:%M")
                         msg.set_content(
-                            f"Hi!
+    f"Hi!
 
 "
-                            f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
+    f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
+
+"
+    f"{st.session_state.result_text}
+
+"
+    f"Warm regards,
+Your Automation Bot"
+) opportunities generated at {date_str}!
 
 "
                             f"{st.session_state.result_text}
@@ -211,9 +219,9 @@ Your Automation Bot"
                         )
 
                         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                        smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-                        smtp.send_message(msg)
-                    st.success("Email sent successfully!")
+    smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+    smtp.send_message(msg)
+                        st.success("Email sent successfully!")
                     except Exception as e:
                         st.error(f"Failed to send email: {e}")
             except Exception as e:
