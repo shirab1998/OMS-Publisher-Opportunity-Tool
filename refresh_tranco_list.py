@@ -1,26 +1,28 @@
 import requests
-import re
+import os
 
-def download_latest_tranco_csv(output_file="top-1m.csv"):
-    print("🔍 Fetching latest Tranco list ID...")
-    index_url = "https://tranco-list.eu"
-    html = requests.get(index_url).text
+OUTPUT_PATH = "top-1m.csv"
 
-    match = re.search(r"/list/([A-Z0-9]+)", html)
-    if not match:
-        raise Exception("Could not find the latest Tranco list ID")
+def download_tranco():
+    try:
+        list_meta = requests.get("https://tranco-list.eu/lists.csv")
+        lines = list_meta.text.strip().splitlines()
+        if len(lines) < 2:
+            raise Exception("No list found in Tranco CSV")
 
-    latest_id = match.group(1)
-    csv_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
+        latest_id = lines[1].split(",")[0]
+        csv_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
 
-    print(f"⬇️ Downloading CSV from {csv_url} ...")
-    response = requests.get(csv_url)
-    if response.status_code == 200:
-        with open(output_file, "wb") as f:
+        print(f"Downloading list ID {latest_id} from {csv_url}")
+        response = requests.get(csv_url)
+        response.raise_for_status()
+
+        with open(OUTPUT_PATH, "wb") as f:
             f.write(response.content)
-        print(f"✅ Downloaded latest Tranco list as {output_file} (ID: {latest_id})")
-    else:
-        raise Exception(f"Failed to download CSV: HTTP {response.status_code}")
+
+        print(f"✅ Downloaded and saved to {OUTPUT_PATH}")
+    except Exception as e:
+        print(f"❌ Failed: {e}")
 
 if __name__ == "__main__":
-    download_latest_tranco_csv()
+    download_tranco()
