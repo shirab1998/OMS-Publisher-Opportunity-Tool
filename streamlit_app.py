@@ -147,24 +147,6 @@ if st.button("Find Opportunities"):
                 st.session_state.result_text = "\n".join(result_lines)
                 st.session_state.results_ready = True
 
-                if st.session_state.results_ready:
-                    st.subheader("📄 Full Result Preview")
-                    st.text(st.session_state.result_text)
-
-                    st.download_button(
-                        label="📥 Download Results as .txt",
-                        data=st.session_state.result_text,
-                        file_name=f"{pub_name}_{pub_id}_opportunities.txt",
-                        mime="text/plain"
-                    )
-                    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-                            smtp.send_message(msg)
-
-                        st.success("Email sent successfully!")
-                    except Exception as e:
-                        st.error(f"Failed to send email: {e}")
-
                 if st.session_state.skipped_log:
                     st.subheader("❗ Skipped Domains Report")
                     skipped_table = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
@@ -188,10 +170,18 @@ if st.button("Find Opportunities"):
 
                         date_str = datetime.now().strftime("%B %d, %Y %H:%M")
                         msg.set_content(
-    f"Hi!
+                            f"Hi!
 
 "
-    f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
+                            f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
+
+"
+                            f"{st.session_state.result_text}
+
+"
+                            f"Warm regards,
+Your Automation Bot"
+                        ) opportunities generated at {date_str}!
 
 "
     f"{st.session_state.result_text}
@@ -221,10 +211,9 @@ Your Automation Bot"
                         )
 
                         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-                            smtp.send_message(msg)
-
-                        st.success("Email sent successfully!")
+                        smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                        smtp.send_message(msg)
+                    st.success("Email sent successfully!")
                     except Exception as e:
                         st.error(f"Failed to send email: {e}")
             except Exception as e:
