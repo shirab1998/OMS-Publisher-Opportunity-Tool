@@ -158,51 +158,7 @@ if st.button("Find Opportunities"):
                         mime="text/plain"
                     )
 
-                st.subheader("📧 Send Results via Email")
-                email_to = st.text_input("Enter email address to send to")
-                send_button = st.button("Send Email")
-
-                if send_button and email_to:
-                    try:
-                        EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-                        EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-
-                        msg = EmailMessage()
-                        msg["Subject"] = f"{pub_name} ({pub_id}) Opportunities"
-                        msg["From"] = EMAIL_ADDRESS
-                        msg["To"] = email_to
-
-                        date_str = datetime.now().strftime("%B %d, %Y %H:%M")
-                        body = (
-    f"Hi!
-
-"
-    f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
-
-"
-    f"{st.session_state.result_text}
-
-"
-    f"Warm regards,
-Your Automation Bot"
-) opportunities generated at {date_str}!
-
-"
-                            f"{st.session_state.result_text}
-
-"
-                            f"Warm regards,
-Your Automation Bot"
-                        )
-                        msg.set_content(body)
-
-                        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-                            smtp.send_message(msg)
-
-                        st.success("Email sent successfully!")
-                    except Exception as e:
-                        st.error(f"Failed to send email: {e}")
+                
 
                         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
