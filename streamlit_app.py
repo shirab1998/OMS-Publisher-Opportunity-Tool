@@ -90,26 +90,26 @@ if st.button("Find Opportunities"):
                             for line in ads_lines
                         )
                         if not has_direct:
-                        reason = f"No valuad.io direct line on ads.txt"
-                        st.write(f"❌ Skipped: {reason}")
-                        st.session_state.skipped_log.append((domain, reason))
-                        continue
+                            reason = f"No valuad.io direct line on ads.txt"
+                            st.write(f"❌ Skipped: {reason}")
+                            st.session_state.skipped_log.append((domain, reason))
+                            continue
 
                         already_buying_oms = any(
                             line.strip().lower().startswith("onlinemediasolutions.com") and pub_id.strip() in line and "direct" in line.lower()
                             for line in ads_lines
                         )
                         if already_buying_oms:
-                        reason = f"Already buying via OMS with pub_id {pub_id}"
-                        st.write(f"⛔ Skipped: {reason}")
-                        st.session_state.skipped_log.append((domain, reason))
-                        continue
+                            reason = f"Already buying via OMS with pub_id {pub_id}"
+                            st.write(f"⛔ Skipped: {reason}")
+                            st.session_state.skipped_log.append((domain, reason))
+                            continue
 
                         if domain.lower() not in tronco_rankings:
-                        reason = f"Not in Tranco Top 500K"
-                        st.write(f"⚠️ Skipped: {reason}")
-                        st.session_state.skipped_log.append((domain, reason))
-                        continue
+                            reason = f"Not in Tranco Top 500K"
+                            st.write(f"⚠️ Skipped: {reason}")
+                            st.session_state.skipped_log.append((domain, reason))
+                            continue
 
                         rank = tronco_rankings[domain.lower()]
                         potential_traffic.append({"Domain": domain, "Traffic Category": "Potential", "Rank": rank})
