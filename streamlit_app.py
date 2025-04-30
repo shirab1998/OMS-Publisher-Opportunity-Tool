@@ -19,10 +19,20 @@ st.title("Publisher Monetization Opportunity Finder")
 # --- TRONCO REFRESH BUTTON ---
 def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
     try:
-        page = requests.get("https://tranco-list.eu/recent")
-        if page.status_code != 200:
-            st.error(f"Failed to fetch Tranco recent page: HTTP {page.status_code}")
+        # Always download from the main latest list page (redirects to the current list)
+        download_url = "https://tranco-list.eu/top-1m.csv"
+        response = requests.get(download_url)
+        if response.status_code == 200:
+            with open(output_file, "wb") as f:
+                f.write(response.content)
+            st.success("✅ Downloaded the current Tranco list from homepage")
+            return True
+        else:
+            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
             return False
+    except Exception as e:
+        st.error(f"Error downloading Tranco list: {e}")
+        return False
 
         # Extract the first /list/{ID} link using regex
         match = re.search(r"/list/([A-Z0-9]{5})", page.text)
