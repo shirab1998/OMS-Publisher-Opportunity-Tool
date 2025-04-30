@@ -145,8 +145,6 @@ if st.button("Find Opportunities"):
                             'direct' in line.lower()
                             for line in ads_lines
                         )
-
-
                         if not has_direct:
                             st.write(f"❌ Skipped: No direct line for {pub_name}")
                             st.session_state.skipped_log.append((domain, "No direct line"))
@@ -154,28 +152,31 @@ if st.button("Find Opportunities"):
 
                         oms_lines = [
                             line for line in ads_lines
-                            if "onlinemediasolutions.com" in line and "direct" in line
+                            if "onlinemediasolutions.com" in line.lower() and "direct" in line.lower()
                         ]
 
                         classified = None
                         for line in oms_lines:
-                            parts = [p.strip() for p in line.split(",")]
+                            parts = [p.strip().lower() for p in line.lower().split(",")]
                             if len(parts) >= 4 and parts[0] == "onlinemediasolutions.com":
-                                classified = "Skip" if parts[1] == pub_id else "Best"
-                                break
+                                if parts[1] == pub_id.strip().lower():
+                                    classified = "Skip"
+                                    break
+                                else:
+                                    classified = "Best"
 
                         if classified == "Skip":
                             st.write("⛔ Skipped: Already buying from this publisher via OMS")
                             st.session_state.skipped_log.append((domain, "Already buying via OMS"))
                             continue
 
-                        if domain not in tronco_rankings:
+                        if domain.lower() not in tronco_rankings:
                             st.write("⚠️ Skipped: Domain not in top 500K Tranco list")
-                            st.session_state.skipped_log.append((domain, "Not in Tranco 350K"))
+                            st.session_state.skipped_log.append((domain, "Not in Tranco 500K"))
                             continue
 
                         traffic_category = classified or "Potential"
-                        rank = tronco_rankings[domain]
+                        rank = tronco_rankings[domain.lower()]
                         potential_traffic.append({"Domain": domain, "Traffic Category": traffic_category, "Rank": rank})
 
                         time.sleep(1)
