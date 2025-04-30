@@ -10,44 +10,39 @@ import os
 import re
 
 # --- CONFIGURATION ---
-TRONCO_TOP_DOMAINS_FILE = "top-1m.csv"  # You need to place Tranco top list CSV here
+TRONCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"  # Use /tmp to ensure write access on Streamlit Cloud
 TRONCO_THRESHOLD = 350000
 
 # --- STREAMLIT INTERFACE ---
 st.title("Publisher Monetization Opportunity Finder")
 
 # --- TRONCO REFRESH BUTTON ---
-def download_latest_tranco_csv(output_file="top-1m.csv"):
+def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
     try:
-        list_page = requests.get("https://tranco-list.eu/recent").text
-        match = re.search(r"/list/([A-Z0-9]{5})", list_page)
-        if not match:
-            st.error("Could not find the latest Tranco list ID from /recent")
+        csv_url = "https://tranco-list.eu/lists.csv"
+        list_csv = requests.get(csv_url)
+        if list_csv.status_code != 200:
+            st.error(f"Failed to fetch list metadata CSV: HTTP {list_csv.status_code}")
             return False
-        latest_id = match.group(1)
-        csv_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
-        response = requests.get(csv_url)
+
+        # Parse the CSV and get the most recent list ID
+        lines = list_csv.text.strip().splitlines()
+        if len(lines) < 2:
+            st.error("No list entries found in Tranco CSV")
+            return False
+
+        latest_line = lines[1]
+        latest_id = latest_line.split(",")[0].strip()
+
+        download_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
+        response = requests.get(download_url)
         if response.status_code == 200:
             with open(output_file, "wb") as f:
                 f.write(response.content)
             st.success(f"✅ Downloaded latest Tranco list (ID: {latest_id})")
             return True
         else:
-            st.error(f"Failed to download CSV: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        st.error(f"Error downloading Tranco list: {e}")
-        return False
-        latest_id = match.group(1)
-        csv_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
-        response = requests.get(csv_url)
-        if response.status_code == 200:
-            with open(output_file, "wb") as f:
-                f.write(response.content)
-            st.success(f"✅ Downloaded latest Tranco list (ID: {latest_id})")
-            return True
-        else:
-            st.error(f"Failed to download CSV: HTTP {response.status_code}")
+            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
             return False
     except Exception as e:
         st.error(f"Error downloading Tranco list: {e}")
