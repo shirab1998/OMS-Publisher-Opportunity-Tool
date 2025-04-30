@@ -173,7 +173,7 @@ if st.button("Find Opportunities"):
                         msg["To"] = email_to
 
                         date_str = datetime.now().strftime("%B %d, %Y %H:%M")
-                        msg.set_content(
+                        body = (
                             f"Hi!
 
 "
@@ -186,6 +186,7 @@ if st.button("Find Opportunities"):
                             f"Warm regards,
 Your Automation Bot"
                         )
+                        msg.set_content(body)
 
                         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
