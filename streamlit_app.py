@@ -11,7 +11,7 @@ import re
 
 # --- CONFIGURATION ---
 TRONCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
-TRONCO_THRESHOLD = 500000
+TRONCO_THRESHOLD = 300000
 
 # --- STREAMLIT INTERFACE ---
 st.title("Publisher Monetization Opportunity Finder")
@@ -90,7 +90,7 @@ if st.button("Find Opportunities"):
                             for line in ads_lines
                         )
                         if not has_direct:
-                            reason = f"No valuad.io direct line on ads.txt"
+                            reason = f"No {pub_name} direct line on ads.txt"
                             st.write(f"❌ Skipped: {reason}")
                             st.session_state.skipped_log.append((domain, reason))
                             continue
@@ -128,16 +128,17 @@ if st.button("Find Opportunities"):
                     rank = row["Rank"]
                     if rank <= 1000:
                         tag = f"{rank} on Tranco"
+                    elif rank <= 75000:
+                        tag = f"{rank:,} on Tranco"
                     elif rank <= 10000:
                         tag = "Top 10K"
                     elif rank <= 50000:
                         tag = "Top 50K"
                     elif rank <= 100000:
                         tag = "Top 100K"
-                    elif rank <= 200000:
-                        tag = "Top 200K"
                     else:
-                        tag = "Top 500K"
+                        rounded = ((rank + 49999) // 50000) * 50000
+                        tag = f"Top {rounded:,}"
 
                     line = f"{idx}. {row['Domain']} – {tag} [{row['Traffic Category']}]"
                     st.write(line)
@@ -149,12 +150,50 @@ if st.button("Find Opportunities"):
                 if st.session_state.results_ready:
                     st.subheader("📄 Full Result Preview")
                     st.text(st.session_state.result_text)
+
                     st.download_button(
                         label="📥 Download Results as .txt",
                         data=st.session_state.result_text,
                         file_name=f"{pub_name}_{pub_id}_opportunities.txt",
                         mime="text/plain"
                     )
+
+                st.subheader("📧 Send Results via Email")
+                email_to = st.text_input("Enter email address to send to")
+                send_button = st.button("Send Email")
+
+                if send_button and email_to:
+                    try:
+                        EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+                        EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+                        msg = EmailMessage()
+                        msg["Subject"] = f"{pub_name} ({pub_id}) Opportunities"
+                        msg["From"] = EMAIL_ADDRESS
+                        msg["To"] = email_to
+
+                        date_str = datetime.now().strftime("%B %d, %Y %H:%M")
+                        msg.set_content(
+                            f"Hi!
+
+"
+                            f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
+
+"
+                            f"{st.session_state.result_text}
+
+"
+                            f"Warm regards,
+Your Automation Bot"
+                        )
+
+                        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                            smtp.send_message(msg)
+
+                        st.success("Email sent successfully!")
+                    except Exception as e:
+                        st.error(f"Failed to send email: {e}")
 
                 if st.session_state.skipped_log:
                     st.subheader("❗ Skipped Domains Report")
