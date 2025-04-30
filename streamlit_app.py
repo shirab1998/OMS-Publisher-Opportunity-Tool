@@ -195,6 +195,14 @@ Your Automation Bot"
                     except Exception as e:
                         st.error(f"Failed to send email: {e}")
 
+                        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                            smtp.send_message(msg)
+
+                        st.success("Email sent successfully!")
+                    except Exception as e:
+                        st.error(f"Failed to send email: {e}")
+
                 if st.session_state.skipped_log:
                     st.subheader("❗ Skipped Domains Report")
                     skipped_table = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
