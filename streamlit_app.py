@@ -178,8 +178,8 @@ if st.button("Find Opportunities"):
                         )
 
                         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-    smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-    smtp.send_message(msg)
+                        smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                        smtp.send_message(msg)
                         st.success("Email sent successfully!")
                     except Exception as e:
                         st.error(f"Failed to send email: {e}")
