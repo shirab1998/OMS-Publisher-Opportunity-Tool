@@ -141,11 +141,11 @@ if st.button("Find Opportunities"):
                         ads_lines = ads_response.text.lower().splitlines()
 
                         has_direct = any(
-                            pub_name.lower() in line.lower() and
-                            pub_id in line and
+                            line.strip().lower().startswith(pub_name.lower()) and
                             'direct' in line.lower()
                             for line in ads_lines
                         )
+
                         if not has_direct:
                             st.write(f"❌ Skipped: No direct line for {pub_name}")
                             st.session_state.skipped_log.append((domain, "No direct line"))
