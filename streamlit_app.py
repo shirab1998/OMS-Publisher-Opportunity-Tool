@@ -11,7 +11,7 @@ import re
 
 # --- CONFIGURATION ---
 TRONCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"  # Use /tmp to ensure write access on Streamlit Cloud
-TRONCO_THRESHOLD = 350000
+TRONCO_THRESHOLD = 500000
 
 # --- STREAMLIT INTERFACE ---
 st.title("Publisher Monetization Opportunity Finder")
@@ -144,7 +144,6 @@ if st.button("Find Opportunities"):
                             pub_name.lower() in line and pub_id in line and "direct" in line.lower()
                             for line in ads_lines
                         )
-
                         if not has_direct:
                             st.write(f"❌ Skipped: No direct line for {pub_name}")
                             st.session_state.skipped_log.append((domain, "No direct line"))
