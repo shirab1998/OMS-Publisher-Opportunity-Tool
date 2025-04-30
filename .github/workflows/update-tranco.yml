@@ -1,0 +1,33 @@
+name: Update Tranco List Daily
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # runs every day at 02:00 UTC
+  workflow_dispatch:     # allows manual trigger from GitHub UI
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Download latest Tranco list
+        run: |
+          python .github/scripts/fetch_tranco.py
+
+      - name: Commit and push
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add top-1m.csv
+          git commit -m "🤖 Update Tranco list" || echo "No changes"
+          git push
