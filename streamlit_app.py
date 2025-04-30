@@ -8,10 +8,9 @@ from email.message import EmailMessage
 import smtplib
 import os
 
-# --- SIMILARWEB SETTINGS ---
-SIMILARWEB_API_KEY = st.secrets.get("similarweb_key", "YOUR_DEFAULT_KEY")
-SIMILARWEB_BASE_URL = "https://api.similarweb.com/v1/website/"
-TIER1_COUNTRIES = ["us", "gb", "ca", "au", "de"]
+# --- CONFIGURATION ---
+TRONCO_TOP_DOMAINS_FILE = "top-1m.csv"  # You need to place Tranco top list CSV here
+TRONCO_THRESHOLD = 350000
 
 # --- STREAMLIT INTERFACE ---
 st.title("Publisher Monetization Opportunity Finder")
@@ -26,19 +25,18 @@ st.session_state.setdefault("result_text", "")
 st.session_state.setdefault("results_ready", False)
 st.session_state.setdefault("skipped_log", [])
 
-# --- UTILITY: CALL SIMILARWEB API ---
-def call_sw_api(endpoint: str, domain: str, params: dict = None):
-    url = f"{SIMILARWEB_BASE_URL}{domain}/{endpoint}"
-    default_params = {"api_key": SIMILARWEB_API_KEY}
-    if params:
-        default_params.update(params)
+# --- LOAD TRONCO CSV ---
+@st.cache_data
+def load_tronco_top_domains():
     try:
-        response = requests.get(url, params=default_params, timeout=10)
-        if not response.ok:
-            return None, f"HTTP {response.status_code}: {response.text}"
-        return response.json(), None
+        df = pd.read_csv(TRONCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
+        top_domains = set(df[df["Rank"] <= TRONCO_THRESHOLD]["Domain"].str.lower())
+        return top_domains
     except Exception as e:
-        return None, str(e)
+        st.error(f"Failed to load Tranco list: {e}")
+        return set()
+
+tronco_top_set = load_tronco_top_domains()
 
 # --- MAIN LOGIC ---
 if st.button("Find Opportunities"):
@@ -58,7 +56,7 @@ if st.button("Find Opportunities"):
                 }
                 st.write(f"Found {len(domains)} domains to check.")
 
-                best_traffic, good_traffic = [], []
+                potential_traffic = []
 
                 for domain in domains:
                     st.write(f"🔍 Checking domain: {domain}")
@@ -93,39 +91,17 @@ if st.button("Find Opportunities"):
                             st.session_state.skipped_log.append((domain, "Already buying via OMS"))
                             continue
 
-                        traffic_json, traffic_err = call_sw_api("traffic-sources/overview", domain)
-                        geo_json, geo_err = call_sw_api("traffic-sources/geo-distribution", domain)
-
-                        if traffic_err:
-                            st.write(f"⚠️ SW Traffic Error: {traffic_err}")
-                            st.session_state.skipped_log.append((domain, f"SW traffic error: {traffic_err}"))
-                            continue
-                        if geo_err:
-                            st.write(f"⚠️ SW Geo Error: {geo_err}")
-                            st.session_state.skipped_log.append((domain, f"SW geo error: {geo_err}"))
+                        if domain not in tronco_top_set:
+                            st.write("⚠️ Skipped: Domain not in top 350K Tranco list")
+                            st.session_state.skipped_log.append((domain, "Not in Tranco 350K"))
                             continue
 
-                        total_visits = traffic_json.get("visits", 0)
-                        geo_data = geo_json.get("country_distribution", [])
-
-                        tier1_visits = sum(
-                            c.get("visits", 0)
-                            for c in geo_data if c.get("country", "").lower() in TIER1_COUNTRIES
-                        )
-
-                        st.write(f"🌍 Traffic: {total_visits:,} total | {tier1_visits:,} Tier1")
-
-                        if tier1_visits >= 500_000:
-                            record = {
-                                "Domain": domain,
-                                "Total Visits": total_visits,
-                                "Tier1 Visits": tier1_visits,
-                                "Traffic Category": classified or "Good"
-                            }
-                            (best_traffic if classified == "Best" else good_traffic).append(record)
-                        else:
-                            st.write("⚠️ Skipped: Not enough Tier1 traffic")
-                            st.session_state.skipped_log.append((domain, "Not enough Tier1 traffic"))
+                        traffic_category = classified or "Potential"
+                        record = {
+                            "Domain": domain,
+                            "Traffic Category": traffic_category
+                        }
+                        potential_traffic.append(record)
 
                         time.sleep(1)
 
@@ -133,20 +109,16 @@ if st.button("Find Opportunities"):
                         st.write(f"❌ Error checking {domain}: {e}")
                         st.session_state.skipped_log.append((domain, f"Request error: {e}"))
 
-                best_traffic.sort(key=lambda x: x["Tier1 Visits"], reverse=True)
-                good_traffic.sort(key=lambda x: x["Tier1 Visits"], reverse=True)
+                potential_traffic.sort(key=lambda x: x["Domain"])
 
                 st.success("Done!")
                 st.subheader(f"{pub_name} ({pub_id}) Opportunities:")
 
                 result_lines = [f"{pub_name} ({pub_id}) Opportunities:\n"]
-                count = 1
-                for row in best_traffic + good_traffic:
-                    label = "Best Traffic" if row in best_traffic else "Good Traffic"
-                    line = f"{count}. {row['Domain']} (Tier1 Visits: {row['Tier1 Visits']:,}) [{label}]"
+                for idx, row in enumerate(potential_traffic, 1):
+                    line = f"{idx}. {row['Domain']} [{row['Traffic Category']}]"
                     st.write(line)
                     result_lines.append(line)
-                    count += 1
 
                 st.session_state.result_text = "\n".join(result_lines)
                 st.session_state.results_ready = True
@@ -154,7 +126,6 @@ if st.button("Find Opportunities"):
                 if st.session_state.results_ready:
                     st.subheader("📄 Full Result Preview")
                     st.text(st.session_state.result_text)
-
                     st.download_button(
                         label="📥 Download Results as .txt",
                         data=st.session_state.result_text,
