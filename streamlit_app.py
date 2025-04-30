@@ -19,12 +19,25 @@ st.title("Publisher Monetization Opportunity Finder")
 # --- TRONCO REFRESH BUTTON ---
 def download_latest_tranco_csv(output_file="top-1m.csv"):
     try:
-        index_url = "https://tranco-list.eu"
-        html = requests.get(index_url).text
-        match = re.search(r"/list/([A-Z0-9]+)", html)
+        list_page = requests.get("https://tranco-list.eu/recent").text
+        match = re.search(r"/list/([A-Z0-9]{5})", list_page)
         if not match:
-            st.error("Could not find the latest Tranco list ID")
+            st.error("Could not find the latest Tranco list ID from /recent")
             return False
+        latest_id = match.group(1)
+        csv_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
+        response = requests.get(csv_url)
+        if response.status_code == 200:
+            with open(output_file, "wb") as f:
+                f.write(response.content)
+            st.success(f"✅ Downloaded latest Tranco list (ID: {latest_id})")
+            return True
+        else:
+            st.error(f"Failed to download CSV: HTTP {response.status_code}")
+            return False
+    except Exception as e:
+        st.error(f"Error downloading Tranco list: {e}")
+        return False
         latest_id = match.group(1)
         csv_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
         response = requests.get(csv_url)
