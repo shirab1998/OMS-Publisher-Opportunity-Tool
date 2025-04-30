@@ -141,7 +141,7 @@ if st.button("Find Opportunities"):
                         ads_lines = ads_response.text.lower().splitlines()
 
                         has_direct = any(
-                            line.strip().split(',')[0].strip() == pub_name.lower() and
+                            pub_name.lower() in line.lower() and
                             pub_id in line and
                             'direct' in line.lower()
                             for line in ads_lines
