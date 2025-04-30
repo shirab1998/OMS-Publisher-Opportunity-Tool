@@ -7,6 +7,7 @@ from datetime import datetime
 from email.message import EmailMessage
 import smtplib
 import os
+import re
 
 # --- CONFIGURATION ---
 TRONCO_TOP_DOMAINS_FILE = "top-1m.csv"  # You need to place Tranco top list CSV here
@@ -14,6 +15,38 @@ TRONCO_THRESHOLD = 350000
 
 # --- STREAMLIT INTERFACE ---
 st.title("Publisher Monetization Opportunity Finder")
+
+# --- TRONCO REFRESH BUTTON ---
+def download_latest_tranco_csv(output_file="top-1m.csv"):
+    try:
+        index_url = "https://tranco-list.eu"
+        html = requests.get(index_url).text
+        match = re.search(r"/list/([A-Z0-9]+)", html)
+        if not match:
+            st.error("Could not find the latest Tranco list ID")
+            return False
+        latest_id = match.group(1)
+        csv_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
+        response = requests.get(csv_url)
+        if response.status_code == 200:
+            with open(output_file, "wb") as f:
+                f.write(response.content)
+            st.success(f"✅ Downloaded latest Tranco list (ID: {latest_id})")
+            return True
+        else:
+            st.error(f"Failed to download CSV: HTTP {response.status_code}")
+            return False
+    except Exception as e:
+        st.error(f"Error downloading Tranco list: {e}")
+        return False
+
+if st.button("🔄 Refresh Tranco List"):
+    download_latest_tranco_csv()
+
+# --- SHOW LAST MODIFIED TIME ---
+if os.path.exists(TRONCO_TOP_DOMAINS_FILE):
+    last_updated = datetime.fromtimestamp(os.path.getmtime(TRONCO_TOP_DOMAINS_FILE))
+    st.caption(f"📅 Tranco list last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
 
 pub_domain = st.text_input("Publisher Domain (e.g., example.com)")
 pub_name = st.text_input("Publisher Name (e.g., connatix.com)")
@@ -30,13 +63,14 @@ st.session_state.setdefault("skipped_log", [])
 def load_tronco_top_domains():
     try:
         df = pd.read_csv(TRONCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
-        top_domains = set(df[df["Rank"] <= TRONCO_THRESHOLD]["Domain"].str.lower())
-        return top_domains
+        df = df[df["Rank"] <= TRONCO_THRESHOLD]
+        domain_rank_map = dict(zip(df["Domain"].str.lower(), df["Rank"]))
+        return domain_rank_map
     except Exception as e:
         st.error(f"Failed to load Tranco list: {e}")
-        return set()
+        return {}
 
-tronco_top_set = load_tronco_top_domains()
+tronco_rankings = load_tronco_top_domains()
 
 # --- MAIN LOGIC ---
 if st.button("Find Opportunities"):
@@ -91,17 +125,14 @@ if st.button("Find Opportunities"):
                             st.session_state.skipped_log.append((domain, "Already buying via OMS"))
                             continue
 
-                        if domain not in tronco_top_set:
+                        if domain not in tronco_rankings:
                             st.write("⚠️ Skipped: Domain not in top 350K Tranco list")
                             st.session_state.skipped_log.append((domain, "Not in Tranco 350K"))
                             continue
 
                         traffic_category = classified or "Potential"
-                        record = {
-                            "Domain": domain,
-                            "Traffic Category": traffic_category
-                        }
-                        potential_traffic.append(record)
+                        rank = tronco_rankings[domain]
+                        potential_traffic.append({"Domain": domain, "Traffic Category": traffic_category, "Rank": rank})
 
                         time.sleep(1)
 
@@ -109,14 +140,28 @@ if st.button("Find Opportunities"):
                         st.write(f"❌ Error checking {domain}: {e}")
                         st.session_state.skipped_log.append((domain, f"Request error: {e}"))
 
-                potential_traffic.sort(key=lambda x: x["Domain"])
+                potential_traffic.sort(key=lambda x: x["Rank"])
 
                 st.success("Done!")
                 st.subheader(f"{pub_name} ({pub_id}) Opportunities:")
 
                 result_lines = [f"{pub_name} ({pub_id}) Opportunities:\n"]
                 for idx, row in enumerate(potential_traffic, 1):
-                    line = f"{idx}. {row['Domain']} [{row['Traffic Category']}]"
+                    rank = row["Rank"]
+                    if rank <= 1000:
+                        tag = f"{rank} on Tranco"
+                    elif rank <= 10000:
+                        tag = "Top 10K"
+                    elif rank <= 50000:
+                        tag = "Top 50K"
+                    elif rank <= 100000:
+                        tag = "Top 100K"
+                    elif rank <= 200000:
+                        tag = "Top 200K"
+                    else:
+                        tag = "Top 350K"
+
+                    line = f"{idx}. {row['Domain']} – {tag} [{row['Traffic Category']}]"
                     st.write(line)
                     result_lines.append(line)
 
