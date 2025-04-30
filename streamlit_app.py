@@ -19,7 +19,7 @@ st.title("Publisher Monetization Opportunity Finder")
 # --- TRONCO REFRESH BUTTON ---
 def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
     try:
-        # Always download from the main latest list page (redirects to the current list)
+        # Always download the latest Tranco list directly from their homepage
         download_url = "https://tranco-list.eu/top-1m.csv"
         response = requests.get(download_url)
         if response.status_code == 200:
@@ -34,49 +34,6 @@ def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
         st.error(f"Error downloading Tranco list: {e}")
         return False
 
-        # Extract the first /list/{ID} link using regex
-        match = re.search(r"/list/([A-Z0-9]{5})", page.text)
-        if not match:
-            st.error("Could not find a valid Tranco list ID from the recent page")
-            return False
-
-        latest_id = match.group(1)
-        download_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
-        response = requests.get(download_url)
-        if response.status_code == 200:
-            with open(output_file, "wb") as f:
-                f.write(response.content)
-            st.success(f"✅ Downloaded latest Tranco list (ID: {latest_id})")
-            return True
-        else:
-            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        st.error(f"Error downloading Tranco list: {e}")
-        return False
-
-        # Parse the CSV and get the most recent list ID
-        lines = list_csv.text.strip().splitlines()
-        if len(lines) < 2:
-            st.error("No list entries found in Tranco CSV")
-            return False
-
-        latest_line = lines[1]
-        latest_id = latest_line.split(",")[0].strip()
-
-        download_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
-        response = requests.get(download_url)
-        if response.status_code == 200:
-            with open(output_file, "wb") as f:
-                f.write(response.content)
-            st.success(f"✅ Downloaded latest Tranco list (ID: {latest_id})")
-            return True
-        else:
-            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        st.error(f"Error downloading Tranco list: {e}")
-        return False
 
 if st.button("🔄 Refresh Tranco List"):
     download_latest_tranco_csv()
