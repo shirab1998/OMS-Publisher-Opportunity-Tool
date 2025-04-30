@@ -141,7 +141,9 @@ if st.button("Find Opportunities"):
                         ads_lines = ads_response.text.lower().splitlines()
 
                         has_direct = any(
-                            pub_name.lower() in line and pub_id in line and "direct" in line.lower()
+                            line.strip().split(',')[0].strip() == pub_name.lower() and
+                            pub_id in line and
+                            'direct' in line.lower()
                             for line in ads_lines
                         )
                         if not has_direct:
@@ -167,7 +169,7 @@ if st.button("Find Opportunities"):
                             continue
 
                         if domain not in tronco_rankings:
-                            st.write("⚠️ Skipped: Domain not in top 350K Tranco list")
+                            st.write("⚠️ Skipped: Domain not in top 500K Tranco list")
                             st.session_state.skipped_log.append((domain, "Not in Tranco 350K"))
                             continue
 
@@ -200,7 +202,7 @@ if st.button("Find Opportunities"):
                     elif rank <= 200000:
                         tag = "Top 200K"
                     else:
-                        tag = "Top 350K"
+                        tag = "Top 500K"
 
                     line = f"{idx}. {row['Domain']} – {tag} [{row['Traffic Category']}]"
                     st.write(line)
