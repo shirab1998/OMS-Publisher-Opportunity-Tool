@@ -10,16 +10,14 @@ import os
 import re
 
 # --- CONFIGURATION ---
-TRONCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"  # Use /tmp to ensure write access on Streamlit Cloud
+TRONCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
 TRONCO_THRESHOLD = 500000
 
 # --- STREAMLIT INTERFACE ---
 st.title("Publisher Monetization Opportunity Finder")
 
-# --- TRONCO REFRESH BUTTON ---
 def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
     try:
-        # Use known valid Tranco list URL (changes daily, but can be replaced periodically)
         download_url = "https://tranco-list.eu/download/YX2VG/1000000"
         response = requests.get(download_url)
         if response.status_code == 200:
@@ -33,58 +31,10 @@ def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
     except Exception as e:
         st.error(f"Error downloading Tranco list: {e}")
         return False
-    except Exception as e:
-        st.error(f"Error downloading Tranco list: {e}")
-        return False
-
-        # Extract the first /list/{ID} link using regex
-        match = re.search(r"/list/([A-Z0-9]{5})", page.text)
-        if not match:
-            st.error("Could not find a valid Tranco list ID from the recent page")
-            return False
-
-        latest_id = match.group(1)
-        download_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
-        response = requests.get(download_url)
-        if response.status_code == 200:
-            with open(output_file, "wb") as f:
-                f.write(response.content)
-            st.success(f"✅ Downloaded latest Tranco list (ID: {latest_id})")
-            return True
-        else:
-            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        st.error(f"Error downloading Tranco list: {e}")
-        return False
-
-        # Parse the CSV and get the most recent list ID
-        lines = list_csv.text.strip().splitlines()
-        if len(lines) < 2:
-            st.error("No list entries found in Tranco CSV")
-            return False
-
-        latest_line = lines[1]
-        latest_id = latest_line.split(",")[0].strip()
-
-        download_url = f"https://tranco-list.eu/download/{latest_id}/1000000"
-        response = requests.get(download_url)
-        if response.status_code == 200:
-            with open(output_file, "wb") as f:
-                f.write(response.content)
-            st.success(f"✅ Downloaded latest Tranco list (ID: {latest_id})")
-            return True
-        else:
-            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        st.error(f"Error downloading Tranco list: {e}")
-        return False
 
 if st.button("🔄 Refresh Tranco List"):
     download_latest_tranco_csv()
 
-# --- SHOW LAST MODIFIED TIME ---
 if os.path.exists(TRONCO_TOP_DOMAINS_FILE):
     last_updated = datetime.fromtimestamp(os.path.getmtime(TRONCO_TOP_DOMAINS_FILE))
     st.caption(f"📅 Tranco list last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -94,26 +44,22 @@ pub_name = st.text_input("Publisher Name (e.g., connatix.com)")
 pub_id = st.text_input("Publisher ID (e.g., 1536788745730056)")
 sample_direct_line = st.text_input("Sample Direct Line (e.g., connatix.com, 12345, DIRECT)")
 
-# --- SESSION STATE SETUP ---
 st.session_state.setdefault("result_text", "")
 st.session_state.setdefault("results_ready", False)
 st.session_state.setdefault("skipped_log", [])
 
-# --- LOAD TRONCO CSV ---
 @st.cache_data
 def load_tronco_top_domains():
     try:
         df = pd.read_csv(TRONCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
         df = df[df["Rank"] <= TRONCO_THRESHOLD]
-        domain_rank_map = dict(zip(df["Domain"].str.lower(), df["Rank"]))
-        return domain_rank_map
+        return dict(zip(df["Domain"].str.lower(), df["Rank"]))
     except Exception as e:
         st.error(f"Failed to load Tranco list: {e}")
         return {}
 
 tronco_rankings = load_tronco_top_domains()
 
-# --- MAIN LOGIC ---
 if st.button("Find Opportunities"):
     if not all([pub_domain, pub_name, pub_id, sample_direct_line]):
         st.error("Please fill out all fields!")
@@ -124,7 +70,6 @@ if st.button("Find Opportunities"):
                 sellers_url = f"https://{pub_domain}/sellers.json"
                 sellers_response = requests.get(sellers_url, timeout=10)
                 sellers_data = sellers_response.json()
-                
                 domains = {
                     s.get("domain").lower() for s in sellers_data.get("sellers", [])
                     if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
@@ -138,49 +83,37 @@ if st.button("Find Opportunities"):
                     ads_url = f"https://{domain}/ads.txt"
                     try:
                         ads_response = requests.get(ads_url, timeout=10)
-                        ads_lines = ads_response.text.lower().splitlines()
+                        ads_lines = ads_response.text.splitlines()
 
                         has_direct = any(
-                            line.strip().lower().startswith(pub_name.lower()) and
-                            'direct' in line.lower()
+                            line.strip().lower().startswith(pub_name.lower()) and "direct" in line.lower()
                             for line in ads_lines
                         )
                         if not has_direct:
-                            st.write(f"❌ Skipped: No direct line for {pub_name}")
-                            st.session_state.skipped_log.append((domain, "No direct line"))
-                            continue
+                        reason = f"No valuad.io direct line on ads.txt"
+                        st.write(f"❌ Skipped: {reason}")
+                        st.session_state.skipped_log.append((domain, reason))
+                        continue
 
-                        oms_lines = [
-                            line for line in ads_lines
-                            if "onlinemediasolutions.com" in line.lower() and "direct" in line.lower()
-                        ]
-
-                        classified = None
-                        for line in oms_lines:
-                            parts = [p.strip().lower() for p in line.lower().split(",")]
-                            if len(parts) >= 4 and parts[0] == "onlinemediasolutions.com":
-                                if parts[1] == pub_id.strip().lower():
-                                    classified = "Skip"
-                                    break
-                                else:
-                                    classified = "Best"
-
-                        if classified == "Skip":
-                            st.write("⛔ Skipped: Already buying from this publisher via OMS")
-                            st.session_state.skipped_log.append((domain, "Already buying via OMS"))
-                            continue
+                        already_buying_oms = any(
+                            line.strip().lower().startswith("onlinemediasolutions.com") and pub_id.strip() in line and "direct" in line.lower()
+                            for line in ads_lines
+                        )
+                        if already_buying_oms:
+                        reason = f"Already buying via OMS with pub_id {pub_id}"
+                        st.write(f"⛔ Skipped: {reason}")
+                        st.session_state.skipped_log.append((domain, reason))
+                        continue
 
                         if domain.lower() not in tronco_rankings:
-                            st.write("⚠️ Skipped: Domain not in top 500K Tranco list")
-                            st.session_state.skipped_log.append((domain, "Not in Tranco 500K"))
-                            continue
+                        reason = f"Not in Tranco Top 500K"
+                        st.write(f"⚠️ Skipped: {reason}")
+                        st.session_state.skipped_log.append((domain, reason))
+                        continue
 
-                        traffic_category = classified or "Potential"
                         rank = tronco_rankings[domain.lower()]
-                        potential_traffic.append({"Domain": domain, "Traffic Category": traffic_category, "Rank": rank})
-
+                        potential_traffic.append({"Domain": domain, "Traffic Category": "Potential", "Rank": rank})
                         time.sleep(1)
-
                     except Exception as e:
                         st.write(f"❌ Error checking {domain}: {e}")
                         st.session_state.skipped_log.append((domain, f"Request error: {e}"))
