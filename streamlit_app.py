@@ -157,10 +157,7 @@ if st.button("Find Opportunities"):
                         file_name=f"{pub_name}_{pub_id}_opportunities.txt",
                         mime="text/plain"
                     )
-
-                
-
-                        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
                             smtp.send_message(msg)
 
@@ -195,6 +192,14 @@ if st.button("Find Opportunities"):
 
 "
     f"Adding here the {pub_name} ({pub_id}) opportunities generated at {date_str}!
+
+"
+    f"{st.session_state.result_text}
+
+"
+    f"Warm regards,
+Your Automation Bot"
+) opportunities generated at {date_str}!
 
 "
     f"{st.session_state.result_text}
