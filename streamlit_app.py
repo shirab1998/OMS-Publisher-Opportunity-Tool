@@ -202,6 +202,14 @@ if st.button("Find Opportunities"):
 "
     f"Warm regards,
 Your Automation Bot"
+) opportunities generated at {date_str}!
+
+"
+    f"{st.session_state.result_text}
+
+"
+    f"Warm regards,
+Your Automation Bot"
 ) opportunities generated at {date_str}!\n\n"
                             f"{st.session_state.result_text}\n\n"
                             f"Warm regards,\nYour Automation Bot"
