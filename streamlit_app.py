@@ -155,10 +155,17 @@ import unicodedata
 def sanitize_header(text):
     text = unicodedata.normalize("NFKD", text)
     text = re.sub(r'[^ -~]', '', text)  # remove non-ASCII
-    return re.sub(r'[\r\n]', '', text.strip())  # remove line breaks
+    return re.sub(r'[
+]', '', text.strip())  # remove line breaks
 
 st.markdown("### 📧 Email This List")
-email_local_part = st.text_input("Enter username (email will be @onlinemediasolutions.com)")
+col1, col2 = st.columns([3, 5])
+with col1:
+    email_local_part = st.text_input("Email Username", placeholder="e.g. shirab")
+with col2:
+    st.markdown("
+#### @onlinemediasolutions.com")
+
 if st.button("Send Email"):
     if not email_local_part.strip():
         st.error("Please enter a valid username before sending the email.")
@@ -175,14 +182,19 @@ if st.button("Send Email"):
             msg["From"] = from_email.strip()
             msg["To"] = full_email.strip()
             body = (
-                f"Hi there!\n\n"
-                f"Here is the list of opportunities for {pub_name} ({pub_id}):\n\n"
-                f"{st.session_state.opportunities_table.to_string(index=False)}\n\n"
-                f"Warm regards,\nAutomation bot"
+                f"Hi there!
+
+"
+                f"Here is the list of opportunities for {pub_name} ({pub_id}):
+
+"
+                f"{st.session_state.opportunities_table.to_string(index=False)}
+
+"
+                f"Warm regards,
+Automation bot"
             )
             msg.set_content(body)
-
-            st.code(msg.as_string(), language='text')  # DEBUG: show the raw message
 
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                 smtp.login(from_email, email_password)
@@ -191,29 +203,6 @@ if st.button("Send Email"):
             st.success("Email sent successfully!")
         except Exception as e:
             st.error(f"Failed to send email: {e}")
-
-# --- DEBUG BLANK EMAIL ---
-if st.button("Send Test Blank Email"):
-    try:
-        full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
-        from_email = st.secrets["EMAIL_ADDRESS"]
-        email_password = st.secrets["EMAIL_PASSWORD"]
-
-        msg = EmailMessage()
-        msg["Subject"] = "Test Email"
-        msg["From"] = from_email.strip()
-        msg["To"] = full_email.strip()
-        msg.set_content("This is a test email with no table content.")
-
-        st.code(msg.as_string(), language='text')  # DEBUG
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(from_email, email_password)
-            smtp.send_message(msg)
-
-        st.success("Test email sent!")
-    except Exception as e:
-        st.error(f"Test email failed: {e}")
 
 # --- SKIPPED DOMAINS REPORT ---
 if st.session_state.skipped_log:
