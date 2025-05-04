@@ -281,8 +281,11 @@ if st.button("Send Email"):
 
 # --- START OVER BUTTON ---
 if st.button("🔁 Start Over"):
+    history_backup = st.session_state.get("history", {}).copy()
     for key in list(st.session_state.keys()):
-        del st.session_state[key]
+        if key != "history":
+            del st.session_state[key]
+    st.session_state["history"] = history_backup
     st.rerun()
 
 # --- SKIPPED DOMAINS REPORT ---
