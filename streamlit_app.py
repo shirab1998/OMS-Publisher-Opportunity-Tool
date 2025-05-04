@@ -60,8 +60,12 @@ with tranco_col:
                     if custom_url.strip().startswith("https://tranco-list.eu/download/") or custom_url.strip().startswith("https://tranco-list.eu/list/"):
                         try:
                             download_url = custom_url.strip()
-                        if "/list/" in download_url:
+                            if "/list/" in download_url:
                             download_url = download_url.replace("/list/", "/download/")
+                            list_id_match = re.search(r'/download/([A-Z0-9]{5})/', download_url)
+                            if list_id_match:
+                                list_id = list_id_match.group(1)
+                                st.caption(f"📄 Tranco list ID: {list_id}")
                         response = requests.get(download_url)
                             if response.status_code == 200:
                                 with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
