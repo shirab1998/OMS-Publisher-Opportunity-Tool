@@ -16,29 +16,107 @@ TRONCO_THRESHOLD = 300000
 # --- STREAMLIT INTERFACE ---
 st.title("Publisher Monetization Opportunity Finder")
 
+def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
+    try:
+        homepage = requests.get("https://tranco-list.eu/")
+        if homepage.status_code != 200:
+            st.error(f"Failed to fetch Tranco homepage: HTTP {homepage.status_code}")
+            return False
 
-if st.button("🔄 Refresh Tranco List"):
-    if os.path.exists(TRONCO_TOP_DOMAINS_FILE):
+        match = re.search(r'href=\"/list/([A-Z0-9]{5})\"', homepage.text)
+        if not match:
+            st.error("Could not extract latest Tranco list ID from homepage.")
+            return False
+
+        list_id = match.group(1)
+        download_url = f"https://tranco-list.eu/download/{list_id}/1000000"
+
+        response = requests.get(download_url)
+        if response.status_code == 200:
+            with open(output_file, "wb") as f:
+                f.write(response.content)
+            st.success(f"✅ Downloaded Tranco list (ID: {list_id})")
+            return True
+        else:
+            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
+            return False
+
+    except Exception as e:
+        st.error(f"Error downloading Tranco list: {e}")
+        return False
+
+        match = re.search(r'/list/([A-Z0-9]{5})', recent_page.text)
+        if not match:
+            st.error("Could not extract latest Tranco list ID.")
+            return False
+
+        list_id = match.group(1)
+        download_url = f"https://tranco-list.eu/download/{list_id}/1000000"
+        response = requests.get(download_url)
+        if response.status_code == 200:
+            with open(output_file, "wb") as f:
+                f.write(response.content)
+            st.success(f"✅ Downloaded Tranco list (ID: {list_id})")
+            return True
+        else:
+            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
+            return False
+    except Exception as e:
+        st.error(f"Error downloading Tranco list: {e}")
+        return False
+    except Exception as e:
+        st.error(f"Error downloading Tranco list: {e}")
+        return False
+
+if "tranco_list_downloaded" not in st.session_state:
+    st.session_state.tranco_list_downloaded = os.path.exists(TRONCO_TOP_DOMAINS_FILE)
+
+tranco_col = st.container()
+with tranco_col:
+    st.markdown("### 🔄 Tranco List Update")
+    if st.session_state.tranco_list_downloaded:
         last_updated = datetime.fromtimestamp(os.path.getmtime(TRONCO_TOP_DOMAINS_FILE))
         delta = datetime.now() - last_updated
         if delta.days < 7:
-            st.info(f"✅ Tranco list is already up to date (last updated {last_updated.strftime('%Y-%m-%d')})")
+            st.success(f"Tranco list is up to date (last updated {last_updated.strftime('%Y-%m-%d')})")
         else:
-            st.write("The current Tranco list is more than a week old.")
-            st.markdown("[Click here to open Tranco](https://tranco-list.eu/)")
-            manual_id = st.text_input("Paste the latest Tranco ID (e.g., YX2VG):")
-            if manual_id:
-                download_url = f"https://tranco-list.eu/download/{manual_id}/1000000"
+            st.warning(f"⚠️ Tranco list is over a week old (last updated {last_updated.strftime('%Y-%m-%d')}).")
+            st.markdown("[Click here to open Tranco site and copy the download ID](https://tranco-list.eu/)")
+            custom_url = st.text_input("Paste full Tranco download URL (e.g. https://tranco-list.eu/download/ABCDE/1000000):")
+            if st.button("Submit Tranco URL"):
+                if custom_url.strip().startswith("https://tranco-list.eu/download/"):
+                    try:
+                        response = requests.get(custom_url.strip())
+                        if response.status_code == 200:
+                            with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
+                                f.write(response.content)
+                            st.session_state.tranco_list_downloaded = True
+                            st.success("✅ Tranco list downloaded and saved.")
+                        else:
+                            st.error(f"Failed to download: HTTP {response.status_code}")
+                    except Exception as e:
+                        st.error(f"Download error: {e}")
+                else:
+                    st.error("❌ Invalid URL. Please paste the full link from tranco-list.eu")
+    else:
+        st.info("No Tranco list found yet. Paste full URL to download one.")
+        st.markdown("[Click here to open Tranco site and copy the download ID](https://tranco-list.eu/)")
+        custom_url = st.text_input("Paste full Tranco download URL (e.g. https://tranco-list.eu/download/ABCDE/1000000):")
+        if st.button("Submit Tranco URL"):
+            if custom_url.strip().startswith("https://tranco-list.eu/download/"):
                 try:
-                    response = requests.get(download_url)
+                    response = requests.get(custom_url.strip())
                     if response.status_code == 200:
                         with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
                             f.write(response.content)
-                        st.success(f"✅ Downloaded Tranco list with ID {manual_id}")
+                        st.session_state.tranco_list_downloaded = True
+                        st.success("✅ Tranco list downloaded and saved.")
                     else:
-                        st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
+                        st.error(f"Failed to download: HTTP {response.status_code}")
                 except Exception as e:
-                    st.error(f"Error downloading Tranco list: {e}")
+                    st.error(f"Download error: {e}")
+            else:
+                st.error("❌ Invalid URL. Please paste the full link from tranco-list.eu")
     else:
         st.warning("No existing Tranco list found. Please enter a Tranco ID to download manually.")
         st.markdown("[Click here to open Tranco](https://tranco-list.eu/)")
@@ -195,7 +273,7 @@ if st.button("Find Opportunities"):
                             f"Here are the {pub_name} ({pub_id}) opportunities generated on {date_str}:\n\n"
                             f"{st.session_state.result_text}\n\n"
                             f"Warm regards,\nYour Automation Bot"
-                            )   
+                            )
 
                         msg.set_content(body)
 
