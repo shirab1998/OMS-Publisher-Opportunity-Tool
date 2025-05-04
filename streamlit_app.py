@@ -179,7 +179,7 @@ if st.button("Send Email"):
             msg["From"] = from_email.strip()
             msg["To"] = full_email.strip()
             html_table = st.session_state.opportunities_table.to_html(index=False, border=1, justify='center', classes='styled-table')
-body = f"""
+            body = f"""
 <html>
   <head>
     <style>
