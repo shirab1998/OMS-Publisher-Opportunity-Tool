@@ -17,6 +17,7 @@ TRANCO_THRESHOLD = 210000
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
 st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("🌐 Tranco List")
@@ -29,7 +30,9 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("🕘 Recent Publishers")
     if "history" in st.session_state:
-        for key, entry in reversed(list(st.session_state["history"].items())):
+        recent_keys = list(reversed(list(st.session_state["history"].keys())))[:10]
+        for key in recent_keys:
+            entry = st.session_state["history"][key]
             label = f"{entry['name']} ({entry['id']})"
             small_date = f"<div style='font-size: 12px; color: gray;'>Generated: {entry['date']}</div>"
             if st.button(label, key=key):
@@ -46,7 +49,6 @@ with st.sidebar:
                     use_container_width=True
                 )
                 st.stop()
-        st.warning("Tranco list not available")
 
 # --- FUNCTION TO FETCH TRANCO LIST ---
 def fetch_latest_tranco(output_file):
