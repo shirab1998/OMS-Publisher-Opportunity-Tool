@@ -73,7 +73,7 @@ with tranco_col:
                             match = re.search(r"/(list|download)/([A-Z0-9]{5})", custom_url_clean)
                             if match:
                                 list_id = match.group(2)
-                                download_url = f"https://tranco-list.eu/download_daily/{list_id}"
+                                download_url = f"https://tranco-list.eu/download/{list_id}/full"
                                 st.caption(f"\U0001F4C4 Using Tranco list ID: {list_id}")
 
                                 response = requests.get(download_url)
