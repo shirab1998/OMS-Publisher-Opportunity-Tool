@@ -98,10 +98,17 @@ with tranco_col:
                 st.error("\u274C Invalid URL. Please paste a link like https://tranco-list.eu/list/ABC12/1000000")
 
 # --- INPUT SECTION ---
-with st.expander("\U0001F4DD Enter Publisher Details"):
+if st.session_state.opportunities_table.empty:
+    st.markdown("### \U0001F4DD Enter Publisher Details")
     pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
     pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
     pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+else:
+    pub_domain = st.session_state.get("pub_domain", "")
+    pub_name = st.session_state.get("pub_name", "")
+    pub_id = st.session_state.get("pub_id", "")
+    sample_direct_line = st.session_state.get("sample_direct_line", "")
 
 # --- SESSION STATE DEFAULTS ---
 st.session_state.setdefault("result_text", "")
@@ -122,7 +129,12 @@ tranco_rankings = load_tranco_top_domains()
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("\U0001F50D Find Monetization Opportunities"):
-    if not all([pub_domain, pub_name, pub_id]):
+    st.session_state["pub_domain"] = pub_domain
+    st.session_state["pub_name"] = pub_name
+    st.session_state["pub_id"] = pub_id
+    st.session_state["sample_direct_line"] = sample_direct_line
+
+    if not all([pub_domain, pub_name, pub_id, sample_direct_line]):
         st.error("Please fill out all fields!")
     else:
         with st.spinner("\U0001F50E Checking domains..."):
