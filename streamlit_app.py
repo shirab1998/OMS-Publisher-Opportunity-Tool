@@ -154,10 +154,10 @@ import unicodedata
 
 def sanitize_header(text):
     text = unicodedata.normalize("NFKD", text)
-    text = re.sub(r'[^\x20-\x7E]', '', text)  # remove non-ASCII
+    text = re.sub(r'[^ -~]', '', text)  # remove non-ASCII
     return re.sub(r'[\r\n]', '', text.strip())  # remove line breaks
 
-st.markdown("### \U0001F4E7 Email This List")
+st.markdown("### 📧 Email This List")
 email_local_part = st.text_input("Enter username (email will be @onlinemediasolutions.com)")
 if st.button("Send Email"):
     if not email_local_part.strip():
@@ -182,6 +182,8 @@ if st.button("Send Email"):
             )
             msg.set_content(body)
 
+            st.code(msg.as_string(), language='text')  # DEBUG: show the raw message
+
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                 smtp.login(from_email, email_password)
                 smtp.send_message(msg)
@@ -189,6 +191,29 @@ if st.button("Send Email"):
             st.success("Email sent successfully!")
         except Exception as e:
             st.error(f"Failed to send email: {e}")
+
+# --- DEBUG BLANK EMAIL ---
+if st.button("Send Test Blank Email"):
+    try:
+        full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
+        from_email = st.secrets["EMAIL_ADDRESS"]
+        email_password = st.secrets["EMAIL_PASSWORD"]
+
+        msg = EmailMessage()
+        msg["Subject"] = "Test Email"
+        msg["From"] = from_email.strip()
+        msg["To"] = full_email.strip()
+        msg.set_content("This is a test email with no table content.")
+
+        st.code(msg.as_string(), language='text')  # DEBUG
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(from_email, email_password)
+            smtp.send_message(msg)
+
+        st.success("Test email sent!")
+    except Exception as e:
+        st.error(f"Test email failed: {e}")
 
 # --- SKIPPED DOMAINS REPORT ---
 if st.session_state.skipped_log:
