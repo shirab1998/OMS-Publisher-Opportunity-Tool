@@ -183,7 +183,7 @@ if st.button("Send Email"):
 <html>
   <head>
     <style>
-      body {{ font-family: Arial, sans-serif; font-size: 14px; color: #333; }}
+      * {{ font-family: Arial, sans-serif; font-size: 14px; color: #333; }}
       .styled-table {{
         border-collapse: collapse;
         margin: 10px 0;
