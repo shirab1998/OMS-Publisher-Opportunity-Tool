@@ -132,7 +132,6 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                     }
                     if not domains and manual_domains_input:
                         manual_lines = re.split(r'[\n,]+', manual_domains_input)
-
                         domains = {d.strip().lower() for d in manual_lines if d.strip()}
                     results = []
                     progress = st.progress(0)
@@ -186,28 +185,25 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"📈 Opportunities for {pub_name} ({pub_id})")
 
-    # Summary Stats
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
     oms_no = total - oms_yes
     skipped = len(st.session_state.skipped_log)
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
-    # Show final table
-    # Style top 50K domains green
-styled_df = st.session_state.opportunities_table.copy()
-styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
-styled_df_display = styled_df.drop(columns=["Highlight"])
-st.dataframe(
-    styled_df_display.style.apply(
-        lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
-        axis=0
-    ),
-    use_container_width=True
-)
+    styled_df = st.session_state.opportunities_table.copy()
+    styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
+    styled_df_display = styled_df.drop(columns=["Highlight"])
+    st.dataframe(
+        styled_df_display.style.apply(
+            lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
+            axis=0
+        ),
+        use_container_width=True
+    )
+
     csv_data = st.session_state.opportunities_table.to_csv(index=False)
     st.download_button("⬇️ Download Opportunities CSV", data=csv_data, file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
-    
 
 # --- EMAIL SECTION ---
 def sanitize_header(text):
@@ -291,7 +287,7 @@ if st.button("🔁 Start Over"):
 if st.session_state.skipped_log:
     with st.expander("⛔ Skipped Domains", expanded=False):
         st.subheader("⛔ Skipped Domains")
-    skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
-    st.dataframe(skipped_df, use_container_width=True)
-    skipped_csv = skipped_df.to_csv(index=False)
-    st.download_button("\u2B07\uFE0F Download Skipped Domains CSV", data=skipped_csv, file_name="skipped_domains.csv", mime="text/csv")
+        skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
+        st.dataframe(skipped_df, use_container_width=True)
+        skipped_csv = skipped_df.to_csv(index=False)
+        st.download_button("⬇️ Download Skipped Domains CSV", data=skipped_csv, file_name="skipped_domains.csv", mime="text/csv")
