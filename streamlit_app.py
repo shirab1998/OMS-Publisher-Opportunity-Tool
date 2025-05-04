@@ -3,10 +3,10 @@ import requests
 import pandas as pd
 import time
 from datetime import datetime
-from email.message import EmailMessage
-import smtplib
 import os
 import re
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
@@ -153,21 +153,24 @@ if not st.session_state.opportunities_table.empty:
     if st.button("Send Email") and email_local_part:
         try:
             full_email = f"{email_local_part}@onlinemediasolutions.com"
-            from_email = st.secrets["EMAIL_ADDRESS"]
-            email_password = st.secrets["EMAIL_PASSWORD"]
+            from_email = st.secrets["SENDGRID_FROM_EMAIL"]
+            api_key = st.secrets["SENDGRID_API_KEY"]
 
-            msg = EmailMessage()
-            msg["Subject"] = f"Opportunities for {pub_name} ({pub_id})"
-            msg["From"] = from_email
-            msg["To"] = full_email
             body = f"Hi there!\n\nHere is the list of opportunities for {pub_name} ({pub_id}):\n\n{st.session_state.opportunities_table.to_string(index=False)}\n\nWarm regards,\nAutomation bot"
-            msg.set_content(body)
 
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                smtp.login(from_email, email_password)
-                smtp.send_message(msg)
+            message = Mail(
+                from_email=from_email,
+                to_emails=full_email,
+                subject=f"Opportunities for {pub_name} ({pub_id})",
+                plain_text_content=body
+            )
 
-            st.success("Email sent successfully!")
+            sg = SendGridAPIClient(api_key)
+            response = sg.send(message)
+            if response.status_code >= 200 and response.status_code < 300:
+                st.success("Email sent successfully!")
+            else:
+                st.error(f"SendGrid returned status {response.status_code}")
         except Exception as e:
             st.error(f"Failed to send email: {e}")
 
