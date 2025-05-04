@@ -155,15 +155,16 @@ import unicodedata
 def sanitize_header(text):
     text = unicodedata.normalize("NFKD", text)
     text = re.sub(r'[^ -~]', '', text)  # remove non-ASCII
-    text = text.strip().replace('\r', '').replace('\n', '')  # remove line breaks
+    text = text.strip().replace('
+', '').replace('
+', '')  # remove line breaks
     return text  # remove line breaks  # remove line breaks
 
 st.markdown("### 📧 Email This List")
-col1, col2 = st.columns([3, 5])
-with col1:
-    email_local_part = st.text_input("Email Username", placeholder="e.g. shirab")
-with col2:
-    st.markdown("#### @onlinemediasolutions.com")
+email_container = st.container()
+with email_container:
+    email_local_part = st.text_input("Email Address", placeholder="e.g. shirab")
+    st.markdown(f"<div style='margin-top: -35px; margin-left: 165px; font-size: 16px; color: #666;'>@onlinemediasolutions.com</div>", unsafe_allow_html=True)
 
 if st.button("Send Email"):
     if not email_local_part.strip():
