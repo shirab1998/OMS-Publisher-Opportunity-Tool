@@ -143,8 +143,7 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
 
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"\U0001F4C8 Opportunities for {pub_name} ({pub_id})")
-    styled_df = st.session_state.opportunities_table.style.background_gradient(subset="Tranco Rank", cmap="Greens")
-    st.dataframe(styled_df, use_container_width=True)
+    st.dataframe(st.session_state.opportunities_table, use_container_width=True)
 
     csv_data = st.session_state.opportunities_table.to_csv(index=False)
     st.download_button("\u2B07\uFE0F Download Opportunities CSV", data=csv_data, file_name="opportunities.csv", mime="text/csv")
