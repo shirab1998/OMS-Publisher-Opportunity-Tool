@@ -52,11 +52,13 @@ def fetch_latest_tranco(output_file):
 
 # --- INPUT SECTION ---
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
-    st.markdown("### \U0001F4DD Enter Publisher Details")
+    st.markdown("### 📝 Enter Publisher Details")
     pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
     pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
     pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
     sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+    st.markdown("Or paste domains manually (if sellers.json not found):")
+    manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100)
 else:
     pub_domain = st.session_state.get("pub_domain", "")
     pub_name = st.session_state.get("pub_name", "")
@@ -106,6 +108,10 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                         s.get("domain").lower() for s in sellers_data.get("sellers", [])
                         if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
                     }
+                    if not domains and manual_domains_input:
+                        manual_lines = re.split(r'[
+,]+', manual_domains_input)
+                        domains = {d.strip().lower() for d in manual_lines if d.strip()}
                     results = []
                     progress = st.progress(0)
                     for idx, domain in enumerate(domains, start=1):
@@ -145,10 +151,42 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
 
 # --- RESULTS DISPLAY ---
 if not st.session_state.opportunities_table.empty:
-    st.subheader(f"\U0001F4C8 Opportunities for {pub_name} ({pub_id})")
-    st.dataframe(st.session_state.opportunities_table, use_container_width=True)
-    csv_data = st.session_state.opportunities_table.to_csv(index=False)
-    st.download_button("\u2B07\uFE0F Download Opportunities CSV", data=csv_data, file_name="opportunities.csv", mime="text/csv")
+    st.subheader(f"📈 Opportunities for {pub_name} ({pub_id})")
+
+    # Summary Stats
+    total = len(st.session_state.opportunities_table)
+    oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
+    oms_no = total - oms_yes
+    skipped = len(st.session_state.skipped_log)
+    st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
+
+    # Interactive table
+    filtered_df = st.session_state.opportunities_table.copy()
+    filter_col1, filter_col2 = st.columns(2)
+    with filter_col1:
+        min_rank = st.number_input("Minimum Tranco Rank", min_value=1, max_value=210000, value=1)
+    with filter_col2:
+        max_rank = st.number_input("Maximum Tranco Rank", min_value=1, max_value=210000, value=210000)
+    filtered_df = filtered_df[(filtered_df["Tranco Rank"] >= min_rank) & (filtered_df["Tranco Rank"] <= max_rank)]
+
+    st.dataframe(filtered_df, use_container_width=True)
+    csv_data = filtered_df.to_csv(index=False)
+    st.download_button("⬇️ Download Opportunities CSV", data=csv_data, file_name="opportunities.csv", mime="text/csv")
+
+    # Email preview
+    with st.expander("📬 Preview Email"): 
+        html_table = filtered_df.to_html(index=False, border=1, justify='center', classes='styled-table')
+        preview_body = f"""
+        <html>
+          <body style='font-family: Arial; font-size: 14px;'>
+            <p>Hi there!</p>
+            <p>Here is the list of opportunities for <strong>{pub_name}</strong> ({pub_id}):</p>
+            {html_table}
+            <p>Warm regards,<br/>Automation bot</p>
+          </body>
+        </html>
+        """
+        st.markdown(preview_body, unsafe_allow_html=True)
 
 # --- EMAIL SECTION ---
 def sanitize_header(text):
