@@ -44,6 +44,14 @@ if "tranco_list_downloaded" not in st.session_state:
     st.session_state.tranco_list_downloaded = os.path.exists(TRONCO_TOP_DOMAINS_FILE)
 
 # --- TRANCO UPDATE SECTION ---
+def auto_fetch_latest_tranco_id():
+    try:
+        homepage = requests.get("https://tranco-list.eu")
+        match = re.search(r'href=\"/list/([A-Z0-9]{5})\"', homepage.text)
+        if match:
+            return match.group(1)
+    except Exception:
+        return None
 tranco_col = st.container()
 with tranco_col:
     st.markdown("### 🔄 Tranco List Update")
@@ -54,33 +62,48 @@ with tranco_col:
 
         if delta.days >= 7:
             if st.toggle("⚠️ Tranco list is over a week old. Click to open update options"):
-                st.markdown("[🌐 Open Tranco Site](https://tranco-list.eu/) to copy latest list ID")
-                custom_url = st.text_input("Paste full Tranco download URL")
-                if st.button("📥 Download and Save Tranco List"):
-                custom_url_clean = custom_url.strip()
-                if custom_url_clean.startswith("https://tranco-list.eu/list/") or custom_url_clean.startswith("https://tranco-list.eu/download/"):
-                    try:
-                        # Extract Tranco list ID from either link format
-                        match = re.search(r"/(list|download)/([A-Z0-9]{5})", custom_url_clean)
-                        if match:
-                            list_id = match.group(2)
-                            download_url = f"https://tranco-list.eu/download_daily/{list_id}"
-                            st.caption(f"📄 Using Tranco list ID: {list_id}")
-
+                latest_id = auto_fetch_latest_tranco_id()
+                if latest_id:
+                    st.markdown(f"✅ Latest Tranco ID detected: `{latest_id}`")
+                    if st.button("📥 Auto-download Latest Tranco List"):
+                        try:
+                            download_url = f"https://tranco-list.eu/download_daily/{latest_id}"
                             response = requests.get(download_url)
                             if response.status_code == 200:
                                 with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
                                     f.write(response.content)
                                 st.session_state.tranco_list_downloaded = True
-                                st.success("✅ Tranco list downloaded and saved.")
+                                st.success(f"✅ Downloaded Tranco list (ID: {latest_id})")
                             else:
                                 st.error(f"Failed to download: HTTP {response.status_code}")
-                        else:
-                            st.error("❌ Couldn't extract Tranco list ID from the URL.")
-                    except Exception as e:
-                        st.error(f"Download error: {e}")
-                else:
-                    st.error("❌ Invalid URL. Please paste a link from tranco-list.eu")
+                        except Exception as e:
+                            st.error(f"Auto-download failed: {e}"). Click to open update options"):
+                st.markdown("[🌐 Open Tranco Site](https://tranco-list.eu/) to copy latest list ID")
+                custom_url = st.text_input("Paste full Tranco download URL")
+                if st.button("📥 Download and Save Tranco List"):
+                    custom_url_clean = custom_url.strip()
+                    if custom_url_clean.startswith("https://tranco-list.eu/list/") or custom_url_clean.startswith("https://tranco-list.eu/download/"):
+                        try:
+                            match = re.search(r"/(list|download)/([A-Z0-9]{5})", custom_url_clean)
+                            if match:
+                                list_id = match.group(2)
+                                download_url = f"https://tranco-list.eu/download_daily/{list_id}"
+                                st.caption(f"📄 Using Tranco list ID: {list_id}")
+
+                                response = requests.get(download_url)
+                                if response.status_code == 200:
+                                    with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
+                                        f.write(response.content)
+                                    st.session_state.tranco_list_downloaded = True
+                                    st.success("✅ Tranco list downloaded and saved.")
+                                else:
+                                    st.error(f"Failed to download: HTTP {response.status_code}")
+                            else:
+                                st.error("❌ Couldn't extract Tranco list ID from the URL.")
+                        except Exception as e:
+                            st.error(f"Download error: {e}")
+                    else:
+                        st.error("❌ Invalid URL. Please paste a link from tranco-list.eu")
                             st.error(f"Failed to download: HTTP {response.status_code}")
                     except Exception as e:
                         st.error(f"Download error: {e}")
