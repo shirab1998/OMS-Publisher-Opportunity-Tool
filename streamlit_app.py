@@ -33,7 +33,16 @@ with st.sidebar:
             if st.button(f"{entry['name']} ({entry['id']})", key=key):
                 st.subheader(f"📜 Past Results: {entry['name']} ({entry['id']})")
                 st.caption(f"Generated on: {entry['date']}")
-                st.dataframe(entry['table'], use_container_width=True)
+                styled = entry['table'].copy()
+styled["Highlight"] = styled["Tranco Rank"] <= 50000
+styled_display = styled.drop(columns=["Highlight"])
+st.dataframe(
+    styled_display.style.apply(
+        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
+        axis=0
+    ),
+    use_container_width=True
+)
                 st.stop()
         st.warning("Tranco list not available")
 
@@ -188,6 +197,10 @@ styled_df = st.session_state.opportunities_table.copy()
 styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
 styled_df_display = styled_df.drop(columns=["Highlight"])
 st.dataframe(
+    styled_df_display.style.apply(
+        lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
+        axis=0
+    ),
     styled_df_display.style.apply(
         lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
         axis=0
