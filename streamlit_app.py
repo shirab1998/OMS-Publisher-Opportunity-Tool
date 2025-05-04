@@ -123,9 +123,9 @@ if st.button("🔍 Find Monetization Opportunities"):
         st.error("Please fill out all fields!")
     else:
         with st.spinner("🔎 Checking domains..."):
-            st.session_state.skipped_log = []
-            sellers_url = f"https://{pub_domain}/sellers.json"
             try:
+                st.session_state.skipped_log = []
+                sellers_url = f"https://{pub_domain}/sellers.json"
                 sellers_response = requests.get(sellers_url, timeout=10)
                 sellers_data = sellers_response.json()
                 domains = {
@@ -170,6 +170,8 @@ if st.button("🔍 Find Monetization Opportunities"):
                 st.session_state.opportunities_table = df_results
 
                 st.success("✅ Analysis complete")
+            except Exception as e:
+                st.error(f"Error while processing: {e}")
 
 # --- RESULTS DISPLAY ---
 if not st.session_state.opportunities_table.empty:
