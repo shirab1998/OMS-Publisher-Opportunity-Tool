@@ -61,7 +61,11 @@ with tranco_col:
                         try:
                             download_url = custom_url.strip()
                             if "/list/" in download_url:
-                            download_url = download_url.replace("/list/", "/download/")
+                                match = re.search(r"/list/([A-Z0-9]{5})", download_url)
+                                if match:
+                                    list_id = match.group(1)
+                                    download_url = f"https://tranco-list.eu/download_daily/{list_id}"
+                                    st.caption(f"📄 Tranco list ID: {list_id}")
                             list_id_match = re.search(r'/download/([A-Z0-9]{5})/', download_url)
                             if list_id_match:
                                 list_id = list_id_match.group(1)
