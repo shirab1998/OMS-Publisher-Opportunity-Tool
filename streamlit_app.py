@@ -77,6 +77,7 @@ def load_tranco_top_domains():
 
 tranco_rankings = load_tranco_top_domains()
 
+# --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("\U0001F50D Find Monetization Opportunities"):
     st.session_state["pub_domain"] = pub_domain
     st.session_state["pub_name"] = pub_name
@@ -127,7 +128,7 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                             results.append({
                                 "Domain": domain,
                                 "Tranco Rank": rank,
-                                "OMS Buying": "🟢 Yes" if is_oms_buyer else "🔴 No"
+                                "OMS Buying": "Yes" if is_oms_buyer else "No"
                             })
                             time.sleep(0.1)
                         except Exception as e:
@@ -141,26 +142,35 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
             except Exception as e:
                 st.error(f"Error while processing: {e}")
 
+# --- RESULTS DISPLAY ---
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"\U0001F4C8 Opportunities for {pub_name} ({pub_id})")
     st.dataframe(st.session_state.opportunities_table, use_container_width=True)
-
     csv_data = st.session_state.opportunities_table.to_csv(index=False)
     st.download_button("\u2B07\uFE0F Download Opportunities CSV", data=csv_data, file_name="opportunities.csv", mime="text/csv")
 
-    st.markdown("### \U0001F4E7 Email This List")
-    email_local_part = st.text_input("Enter username (email will be @onlinemediasolutions.com)")
-    if st.button("Send Email") and email_local_part:
+# --- EMAIL SECTION ---
+st.markdown("### \U0001F4E7 Email This List")
+email_local_part = st.text_input("Enter username (email will be @onlinemediasolutions.com)")
+if st.button("Send Email"):
+    if not email_local_part.strip():
+        st.error("Please enter a valid username before sending the email.")
+    else:
         try:
-            full_email = f"{email_local_part}@onlinemediasolutions.com"
+            full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
             from_email = st.secrets["EMAIL_ADDRESS"]
             email_password = st.secrets["EMAIL_PASSWORD"]
 
             msg = EmailMessage()
-            msg["Subject"] = f"Opportunities for {pub_name} ({pub_id})"
+            msg["Subject"] = f"{pub_name} ({pub_id}) opportunities"
             msg["From"] = from_email
             msg["To"] = full_email
-            body = f"Hi there!\n\nHere is the list of opportunities for {pub_name} ({pub_id}):\n\n{st.session_state.opportunities_table.to_string(index=False)}\n\nWarm regards,\nAutomation bot"
+            body = (
+                f"Hi there!\n\n"
+                f"Here is the list of opportunities for {pub_name} ({pub_id}):\n\n"
+                f"{st.session_state.opportunities_table.to_string(index=False)}\n\n"
+                f"Warm regards,\nAutomation bot"
+            )
             msg.set_content(body)
 
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
@@ -171,6 +181,7 @@ if not st.session_state.opportunities_table.empty:
         except Exception as e:
             st.error(f"Failed to send email: {e}")
 
+# --- SKIPPED DOMAINS REPORT ---
 if st.session_state.skipped_log:
     st.subheader("\u274C Skipped Domains")
     skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
