@@ -30,9 +30,11 @@ with st.sidebar:
     st.subheader("🕘 Recent Publishers")
     if "history" in st.session_state:
         for key, entry in reversed(list(st.session_state["history"].items())):
-            if st.button(f"{entry['name']} ({entry['id']})", key=key):
+            label = f"{entry['name']} ({entry['id']})"
+            small_date = f"<div style='font-size: 12px; color: gray;'>Generated: {entry['date']}</div>"
+            if st.button(label, key=key):
                 st.subheader(f"📜 Past Results: {entry['name']} ({entry['id']})")
-                st.caption(f"Generated on: {entry['date']}")
+                st.markdown(small_date, unsafe_allow_html=True)
                 styled = entry['table'].copy()
 styled["Highlight"] = styled["Tranco Rank"] <= 50000
 styled_display = styled.drop(columns=["Highlight"])
