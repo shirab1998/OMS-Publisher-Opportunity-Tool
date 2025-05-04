@@ -62,24 +62,9 @@ with tranco_col:
 
         if delta.days >= 7:
             if st.toggle("⚠️ Tranco list is over a week old. Click to open update options"):
-                latest_id = auto_fetch_latest_tranco_id()
-                if latest_id:
-                    st.markdown(f"✅ Latest Tranco ID detected: `{latest_id}`")
-                    if st.button("📥 Auto-download Latest Tranco List"):
-                        try:
-                            download_url = f"https://tranco-list.eu/download_daily/{latest_id}"
-                            response = requests.get(download_url)
-                            if response.status_code == 200:
-                                with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
-                                    f.write(response.content)
-                                st.session_state.tranco_list_downloaded = True
-                                st.success(f"✅ Downloaded Tranco list (ID: {latest_id})")
-                            else:
-                                st.error(f"Failed to download: HTTP {response.status_code}")
-                        except Exception as e:
-                            st.error(f"Auto-download failed: {e}"). Click to open update options"):
-                st.markdown("[🌐 Open Tranco Site](https://tranco-list.eu/) to copy latest list ID")
-                custom_url = st.text_input("Paste full Tranco download URL")
+                st.markdown("[🌐 Open Tranco Site](https://tranco-list.eu/) and copy any list link like:`https://tranco-list.eu/list/ABC12/1000000`")
+                st.caption("We'll auto-convert it to the correct download format for you ✅")
+                custom_url = st.text_input("Paste Tranco list link here")
                 if st.button("📥 Download and Save Tranco List"):
                     custom_url_clean = custom_url.strip()
                     if custom_url_clean.startswith("https://tranco-list.eu/list/") or custom_url_clean.startswith("https://tranco-list.eu/download/"):
@@ -103,7 +88,7 @@ with tranco_col:
                         except Exception as e:
                             st.error(f"Download error: {e}")
                     else:
-                        st.error("❌ Invalid URL. Please paste a link from tranco-list.eu")
+                        st.error("❌ Invalid URL. Please paste a link like https://tranco-list.eu/list/ABC12/1000000")
                             st.error(f"Failed to download: HTTP {response.status_code}")
                     except Exception as e:
                         st.error(f"Download error: {e}")
