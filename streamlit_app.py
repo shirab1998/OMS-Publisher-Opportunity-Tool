@@ -18,16 +18,30 @@ st.title("Publisher Monetization Opportunity Finder")
 
 def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
     try:
-        download_url = "https://tranco-list.eu/download/YX2VG/1000000"
+        recent_page = requests.get("https://tranco-list.eu/recent")
+        if recent_page.status_code != 200:
+            st.error(f"Failed to fetch recent Tranco page: HTTP {recent_page.status_code}")
+            return False
+
+        match = re.search(r'/list/([A-Z0-9]{5})', recent_page.text)
+        if not match:
+            st.error("Could not extract latest Tranco list ID.")
+            return False
+
+        list_id = match.group(1)
+        download_url = f"https://tranco-list.eu/download/{list_id}/1000000"
         response = requests.get(download_url)
         if response.status_code == 200:
             with open(output_file, "wb") as f:
                 f.write(response.content)
-            st.success("✅ Downloaded Tranco list (ID: YX2VG)")
+            st.success(f"✅ Downloaded Tranco list (ID: {list_id})")
             return True
         else:
             st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
             return False
+    except Exception as e:
+        st.error(f"Error downloading Tranco list: {e}")
+        return False
     except Exception as e:
         st.error(f"Error downloading Tranco list: {e}")
         return False
@@ -170,11 +184,12 @@ if st.button("Find Opportunities"):
 
                         date_str = datetime.now().strftime("%B %d, %Y %H:%M")
                         body = (
-    f"Hi!\n\n"
-    f"Here are the {pub_name} ({pub_id}) opportunities generated on {date_str}:\n\n"
-    f"{st.session_state.result_text}\n\n"
-    f"Warm regards,\nYour Automation Bot"
-)
+                            f"Hi!\n\n"
+                            f"Here are the {pub_name} ({pub_id}) opportunities generated on {date_str}:\n\n"
+                            f"{st.session_state.result_text}\n\n"
+                            f"Warm regards,\nYour Automation Bot"
+                        )
+
                         msg.set_content(body)
 
                         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
