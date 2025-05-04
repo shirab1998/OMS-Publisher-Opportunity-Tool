@@ -26,7 +26,7 @@ def fetch_latest_tranco(output_file):
             return False
 
         list_id = match.group(1)
-        download_url = f"https://tranco-list.eu/download/{list_id}/1000000"
+        download_url = f"https://tranco-list.eu/download/{list_id}/full"
         response = requests.get(download_url)
         if response.status_code == 200:
             with open(output_file, "wb") as f:
@@ -44,15 +44,6 @@ if "tranco_list_downloaded" not in st.session_state:
     st.session_state.tranco_list_downloaded = os.path.exists(TRANCO_TOP_DOMAINS_FILE)
 
 # --- TRANCO UPDATE SECTION ---
-def auto_fetch_latest_tranco_id():
-    try:
-        homepage = requests.get("https://tranco-list.eu")
-        match = re.search(r'href=\"/list/([A-Z0-9]{5})\"', homepage.text)
-        if match:
-            return match.group(1)
-    except Exception:
-        return None
-
 tranco_col = st.container()
 with tranco_col:
     st.markdown("### \U0001F501 Tranco List Update")
@@ -64,28 +55,21 @@ with tranco_col:
         if delta.days >= 7:
             if st.toggle("\u26A0\uFE0F Tranco list is over a week old. Click to open update options"):
                 st.markdown("[\U0001F310 Open Tranco Site](https://tranco-list.eu/) and copy any list link like:`https://tranco-list.eu/list/ABC12/1000000`")
-                st.caption("We'll auto-convert it to the correct download format for you \u2705")
                 custom_url = st.text_input("Paste Tranco list link here")
                 if st.button("\U0001F4E5 Download and Save Tranco List"):
-                    custom_url_clean = custom_url.strip()
-                    if custom_url_clean.startswith("https://tranco-list.eu/list/") or custom_url_clean.startswith("https://tranco-list.eu/download/"):
+                    match = re.search(r"/list/([A-Z0-9]{5})", custom_url.strip())
+                    if match:
+                        list_id = match.group(1)
+                        download_url = f"https://tranco-list.eu/download/{list_id}/full"
                         try:
-                            match = re.search(r"/(list|download)/([A-Z0-9]{5})", custom_url_clean)
-                            if match:
-                                list_id = match.group(2)
-                                download_url = f"https://tranco-list.eu/download/{list_id}/full"
-                                st.caption(f"\U0001F4C4 Using Tranco list ID: {list_id}")
-
-                                response = requests.get(download_url)
-                                if response.status_code == 200:
-                                    with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                                        f.write(response.content)
-                                    st.session_state.tranco_list_downloaded = True
-                                    st.success("\u2705 Tranco list downloaded and saved.")
-                                else:
-                                    st.error(f"Failed to download: HTTP {response.status_code}")
+                            response = requests.get(download_url)
+                            if response.status_code == 200:
+                                with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                                    f.write(response.content)
+                                st.session_state.tranco_list_downloaded = True
+                                st.success("\u2705 Tranco list downloaded and saved.")
                             else:
-                                st.error("\u274C Couldn't extract Tranco list ID from the URL.")
+                                st.error(f"Failed to download: HTTP {response.status_code}")
                         except Exception as e:
                             st.error(f"Download error: {e}")
                     else:
@@ -93,16 +77,15 @@ with tranco_col:
     else:
         st.info("No Tranco list found yet.")
         st.markdown("[\U0001F310 Open Tranco Site](https://tranco-list.eu/)")
-        custom_url = st.text_input("Paste full Tranco download URL")
+        custom_url = st.text_input("Paste full Tranco list link")
         if st.button("\U0001F4E5 Download and Save Tranco List"):
-            if custom_url.strip().startswith("https://tranco-list.eu/list/") or custom_url.strip().startswith("https://tranco-list.eu/download/"):
-    try:
-        match = re.search(r"/(list|download)/([A-Z0-9]{5})", custom_url.strip())
-        if match:
-                    liif match:
-            list_id = match.group(2)
-            download_url = f"https://tranco-list.eu/download/{list_id}/full"
-            response = requests.get(download_url).status_code == 200:
+            match = re.search(r"/list/([A-Z0-9]{5})", custom_url.strip())
+            if match:
+                list_id = match.group(1)
+                download_url = f"https://tranco-list.eu/download/{list_id}/full"
+                try:
+                    response = requests.get(download_url)
+                    if response.status_code == 200:
                         with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
                             f.write(response.content)
                         st.session_state.tranco_list_downloaded = True
@@ -112,14 +95,13 @@ with tranco_col:
                 except Exception as e:
                     st.error(f"Download error: {e}")
             else:
-                st.error("\u274C Invalid URL. Please paste the full link from tranco-list.eu")
+                st.error("\u274C Invalid URL. Please paste a link like https://tranco-list.eu/list/ABC12/1000000")
 
 # --- INPUT SECTION ---
 with st.expander("\U0001F4DD Enter Publisher Details"):
     pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
     pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
     pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
-    sample_direct_line = st.text_input("Sample Direct Line", placeholder="connatix.com, 12345, DIRECT")
 
 # --- SESSION STATE DEFAULTS ---
 st.session_state.setdefault("result_text", "")
@@ -142,15 +124,19 @@ tranco_rankings = load_tranco_top_domains()
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("\U0001F50D Find Monetization Opportunities"):
-    if not all([pub_domain, pub_name, pub_id, sample_direct_line]):
+    if not all([pub_domain, pub_name, pub_id]):
         st.error("Please fill out all fields!")
     else:
         with st.spinner("\U0001F50E Checking domains..."):
             try:
                 st.session_state.skipped_log = []
                 sellers_url = f"https://{pub_domain}/sellers.json"
-                sellers_response = requests.get(sellers_url, timeout=10)
-                sellers_data = sellers_response.json()
+                try:
+                    sellers_response = requests.get(sellers_url, timeout=10)
+                    sellers_data = sellers_response.json()
+                except Exception:
+                    st.error(f"Invalid sellers.json at {sellers_url}")
+                    sellers_data = {}
 
                 if "sellers" not in sellers_data:
                     st.warning(f"No 'sellers' field in sellers.json for {pub_domain}")
@@ -206,27 +192,6 @@ if not st.session_state.opportunities_table.empty:
     st.dataframe(st.session_state.opportunities_table, use_container_width=True)
     csv_data = st.session_state.opportunities_table.to_csv(index=False)
     st.download_button("\u2B07\uFE0F Download Opportunities CSV", data=csv_data, file_name="opportunities.csv", mime="text/csv")
-
-    st.text_area("\u2709\uFE0F Email Preview", st.session_state.opportunities_table.to_string(index=False), height=200)
-    email_to = st.text_input("Send opportunities via email to")
-    if st.button("\U0001F4E7 Send Email") and email_to:
-        try:
-            EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-            EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-
-            msg = EmailMessage()
-            msg["Subject"] = f"{pub_name} ({pub_id}) Monetization Opportunities"
-            msg["From"] = EMAIL_ADDRESS
-            msg["To"] = email_to
-            msg.set_content(st.session_state.opportunities_table.to_string(index=False))
-
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-                smtp.send_message(msg)
-
-            st.success("Email sent successfully!")
-        except Exception as e:
-            st.error(f"Failed to send email: {e}")
 
 # --- SKIPPED DOMAINS REPORT ---
 if st.session_state.skipped_log:
