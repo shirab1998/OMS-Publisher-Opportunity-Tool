@@ -162,9 +162,11 @@ if st.button("Send Email"):
             email_password = st.secrets["EMAIL_PASSWORD"]
 
             msg = EmailMessage()
-            msg["Subject"] = f"{pub_name} ({pub_id}) opportunities"
-            msg["From"] = from_email
-            msg["To"] = full_email
+            subject_name = pub_name.strip() or "Unknown Publisher"
+            subject_id = pub_id.strip() or "NoID"
+            msg["Subject"] = f"{subject_name} ({subject_id}) opportunities"
+            msg["From"] = from_email.strip()
+            msg["To"] = full_email.strip()
             body = (
                 f"Hi there!\n\n"
                 f"Here is the list of opportunities for {pub_name} ({pub_id}):\n\n"
