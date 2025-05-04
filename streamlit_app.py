@@ -69,7 +69,43 @@ def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
         return False
 
 if st.button("🔄 Refresh Tranco List"):
-    download_latest_tranco_csv()
+    if os.path.exists(TRONCO_TOP_DOMAINS_FILE):
+        last_updated = datetime.fromtimestamp(os.path.getmtime(TRONCO_TOP_DOMAINS_FILE))
+        delta = datetime.now() - last_updated
+        if delta.days < 7:
+            st.info(f"✅ Tranco list is already up to date (last updated {last_updated.strftime('%Y-%m-%d')})")
+        else:
+            st.write("The current Tranco list is more than a week old.")
+            st.markdown("[Click here to open Tranco](https://tranco-list.eu/)")
+            manual_id = st.text_input("Paste the latest Tranco ID (e.g., YX2VG):")
+            if manual_id:
+                download_url = f"https://tranco-list.eu/download/{manual_id}/1000000"
+                try:
+                    response = requests.get(download_url)
+                    if response.status_code == 200:
+                        with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
+                            f.write(response.content)
+                        st.success(f"✅ Downloaded Tranco list with ID {manual_id}")
+                    else:
+                        st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
+                except Exception as e:
+                    st.error(f"Error downloading Tranco list: {e}")
+    else:
+        st.warning("No existing Tranco list found. Please enter a Tranco ID to download manually.")
+        st.markdown("[Click here to open Tranco](https://tranco-list.eu/)")
+        manual_id = st.text_input("Paste the latest Tranco ID (e.g., YX2VG):")
+        if manual_id:
+            download_url = f"https://tranco-list.eu/download/{manual_id}/1000000"
+            try:
+                response = requests.get(download_url)
+                if response.status_code == 200:
+                    with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
+                        f.write(response.content)
+                    st.success(f"✅ Downloaded Tranco list with ID {manual_id}")
+                else:
+                    st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
+            except Exception as e:
+                st.error(f"Error downloading Tranco list: {e}")
 
 if os.path.exists(TRONCO_TOP_DOMAINS_FILE):
     last_updated = datetime.fromtimestamp(os.path.getmtime(TRONCO_TOP_DOMAINS_FILE))
@@ -210,7 +246,7 @@ if st.button("Find Opportunities"):
                             f"Here are the {pub_name} ({pub_id}) opportunities generated on {date_str}:\n\n"
                             f"{st.session_state.result_text}\n\n"
                             f"Warm regards,\nYour Automation Bot"
-                        )
+                            )   
 
                         msg.set_content(body)
 
