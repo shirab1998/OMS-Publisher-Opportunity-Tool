@@ -36,15 +36,15 @@ with st.sidebar:
                 st.subheader(f"📜 Past Results: {entry['name']} ({entry['id']})")
                 st.markdown(small_date, unsafe_allow_html=True)
                 styled = entry['table'].copy()
-styled["Highlight"] = styled["Tranco Rank"] <= 50000
-styled_display = styled.drop(columns=["Highlight"])
-st.dataframe(
-    styled_display.style.apply(
-        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
-        axis=0
-    ),
-    use_container_width=True
-)
+                styled["Highlight"] = styled["Tranco Rank"] <= 50000
+                styled_display = styled.drop(columns=["Highlight"])
+                st.dataframe(
+                    styled_display.style.apply(
+                        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
+                        axis=0
+                    ),
+                    use_container_width=True
+                )
                 st.stop()
         st.warning("Tranco list not available")
 
