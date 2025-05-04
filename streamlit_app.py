@@ -39,14 +39,14 @@ with st.sidebar:
                 styled["Highlight"] = styled["Tranco Rank"] <= 50000
                 styled_display = styled.drop(columns=["Highlight"])
                 st.dataframe(
-                    styled_display.style.apply(
-                        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
-                        axis=0
-                    ),
-                    use_container_width=True
-                )
-                st.stop()
-        st.warning("Tranco list not available")
+    styled_df_display.style.apply(
+        lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
+        axis=0
+    ),
+    use_container_width=True
+)
+csv_data = st.session_state.opportunities_table.to_csv(index=False)
+
 
 # --- FUNCTION TO FETCH TRANCO LIST ---
 def fetch_latest_tranco(output_file):
