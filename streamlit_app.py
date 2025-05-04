@@ -150,6 +150,13 @@ if not st.session_state.opportunities_table.empty:
     st.download_button("\u2B07\uFE0F Download Opportunities CSV", data=csv_data, file_name="opportunities.csv", mime="text/csv")
 
 # --- EMAIL SECTION ---
+import unicodedata
+
+def sanitize_header(text):
+    text = unicodedata.normalize("NFKD", text)
+    text = re.sub(r'[^\x20-\x7E]', '', text)  # remove non-ASCII
+    return re.sub(r'[\r\n]', '', text.strip())  # remove line breaks
+
 st.markdown("### \U0001F4E7 Email This List")
 email_local_part = st.text_input("Enter username (email will be @onlinemediasolutions.com)")
 if st.button("Send Email"):
@@ -161,9 +168,9 @@ if st.button("Send Email"):
             from_email = st.secrets["EMAIL_ADDRESS"]
             email_password = st.secrets["EMAIL_PASSWORD"]
 
+            subject_name = sanitize_header(pub_name or "Unknown Publisher")
+            subject_id = sanitize_header(pub_id or "NoID")
             msg = EmailMessage()
-            subject_name = pub_name.strip() or "Unknown Publisher"
-            subject_id = pub_id.strip() or "NoID"
             msg["Subject"] = f"{subject_name} ({subject_id}) opportunities"
             msg["From"] = from_email.strip()
             msg["To"] = full_email.strip()
