@@ -96,13 +96,13 @@ with tranco_col:
         custom_url = st.text_input("Paste full Tranco download URL")
         if st.button("\U0001F4E5 Download and Save Tranco List"):
             if custom_url.strip().startswith("https://tranco-list.eu/list/") or custom_url.strip().startswith("https://tranco-list.eu/download/"):
-                try:
-                    match = re.search(r"/(list|download)/([A-Z0-9]{5})", custom_url.strip())
-                if match:
-                    list_id = match.group(2)
-                    download_url = f"https://tranco-list.eu/download/{list_id}/full"
-                    response = requests.get(download_url)
-                    if response.status_code == 200:
+    try:
+        match = re.search(r"/(list|download)/([A-Z0-9]{5})", custom_url.strip())
+        if match:
+                    liif match:
+            list_id = match.group(2)
+            download_url = f"https://tranco-list.eu/download/{list_id}/full"
+            response = requests.get(download_url).status_code == 200:
                         with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
                             f.write(response.content)
                         st.session_state.tranco_list_downloaded = True
