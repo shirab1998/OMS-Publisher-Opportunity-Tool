@@ -178,15 +178,40 @@ if st.button("Send Email"):
             msg["Subject"] = f"{subject_name} ({subject_id}) opportunities"
             msg["From"] = from_email.strip()
             msg["To"] = full_email.strip()
-            body = f"""Hi there!
-
-Here is the list of opportunities for {pub_name} ({pub_id}):
-
-{st.session_state.opportunities_table.to_string(index=False)}
-
-Warm regards,
-Automation bot"""
-            msg.set_content(body)
+            html_table = st.session_state.opportunities_table.to_html(index=False, border=1, justify='center', classes='styled-table')
+body = f"""
+<html>
+  <head>
+    <style>
+      body {{ font-family: Arial, sans-serif; font-size: 14px; color: #333; }}
+      .styled-table {{
+        border-collapse: collapse;
+        margin: 10px 0;
+        font-size: 14px;
+        min-width: 400px;
+        border: 1px solid #ddd;
+      }}
+      .styled-table th, .styled-table td {{
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }}
+      .styled-table th {{
+        background-color: #f2f2f2;
+        font-weight: bold;
+      }}
+    </style>
+  </head>
+  <body>
+    <p>Hi there!</p>
+    <p>Here is the list of opportunities for <strong>{pub_name}</strong> ({pub_id}):</p>
+    {html_table}
+    <p>Warm regards,<br/>Automation bot</p>
+  </body>
+</html>
+"""
+            msg.set_content("This email requires an HTML-capable email client.")
+            msg.add_alternative(body, subtype="html")
 
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                 smtp.login(from_email, email_password)
