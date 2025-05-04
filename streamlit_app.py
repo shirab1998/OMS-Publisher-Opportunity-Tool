@@ -158,10 +158,10 @@ def sanitize_header(text):
     return text
 
 st.markdown("### 📧 Email This List")
-email_container = st.container()
-with email_container:
-    email_local_part = st.text_input("Email Address", placeholder="e.g. shirab")
-    st.markdown(f"<div style='margin-top: -35px; margin-left: 165px; font-size: 16px; color: #666;'>@onlinemediasolutions.com</div>", unsafe_allow_html=True)
+st.markdown("<label>Email Address</label>", unsafe_allow_html=True)
+email_cols = st.columns([3, 5])
+email_local_part = email_cols[0].text_input("", placeholder="e.g. shirab", label_visibility="collapsed")
+email_cols[1].markdown("<div style='margin-top: 0.6em; font-size: 16px;'>@onlinemediasolutions.com</div>", unsafe_allow_html=True)
 
 if st.button("Send Email"):
     if not email_local_part.strip():
