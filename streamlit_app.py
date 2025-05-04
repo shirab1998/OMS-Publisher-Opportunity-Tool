@@ -57,9 +57,12 @@ with tranco_col:
                 st.markdown("[🌐 Open Tranco Site](https://tranco-list.eu/) to copy latest list ID")
                 custom_url = st.text_input("Paste full Tranco download URL")
                 if st.button("📥 Download and Save Tranco List"):
-                    if custom_url.strip().startswith("https://tranco-list.eu/download/"):
+                    if custom_url.strip().startswith("https://tranco-list.eu/download/") or custom_url.strip().startswith("https://tranco-list.eu/list/"):
                         try:
-                            response = requests.get(custom_url.strip())
+                            download_url = custom_url.strip()
+                        if "/list/" in download_url:
+                            download_url = download_url.replace("/list/", "/download/")
+                        response = requests.get(download_url)
                             if response.status_code == 200:
                                 with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
                                     f.write(response.content)
