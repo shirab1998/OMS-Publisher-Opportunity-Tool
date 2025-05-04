@@ -16,12 +16,6 @@ TRONCO_THRESHOLD = 300000
 # --- STREAMLIT INTERFACE ---
 st.title("Publisher Monetization Opportunity Finder")
 
-def download_latest_tranco_csv(output_file="/tmp/top-1m.csv"):
-    try:
-        homepage = requests.get("https://tranco-list.eu/")
-        if homepage.status_code != 200:
-            st.error(f"Failed to fetch Tranco homepage: HTTP {homepage.status_code}")
-            return False
 
         match = re.search(r'href=\"/list/([A-Z0-9]{5})\"', homepage.text)
         if not match:
@@ -117,24 +111,7 @@ with tranco_col:
                     st.error(f"Download error: {e}")
             else:
                 st.error("❌ Invalid URL. Please paste the full link from tranco-list.eu")
-    else:
-        st.warning("No existing Tranco list found. Please enter a Tranco ID to download manually.")
-        st.markdown("[Click here to open Tranco](https://tranco-list.eu/)")
-        manual_id = st.text_input("Paste the latest Tranco ID (e.g., YX2VG):")
-        if manual_id:
-            download_url = f"https://tranco-list.eu/download/{manual_id}/1000000"
-            try:
-                response = requests.get(download_url)
-                if response.status_code == 200:
-                    with open(TRONCO_TOP_DOMAINS_FILE, "wb") as f:
-                        f.write(response.content)
-                    st.success(f"✅ Downloaded Tranco list with ID {manual_id}")
-                else:
-                    st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
-            except Exception as e:
-                st.error(f"Error downloading Tranco list: {e}")
-
-if os.path.exists(TRONCO_TOP_DOMAINS_FILE):
+    if os.path.exists(TRONCO_TOP_DOMAINS_FILE):
     last_updated = datetime.fromtimestamp(os.path.getmtime(TRONCO_TOP_DOMAINS_FILE))
     st.caption(f"📅 Tranco list last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -271,11 +248,11 @@ if st.button("Find Opportunities"):
                         body = (
                             f"Hi!\n\n"
                             f"Here are the {pub_name} ({pub_id}) opportunities generated on {date_str}:\n\n"
-                            f"{st.session_state.result_text}\n\n"
-                            f"Warm regards,\nYour Automation Bot"
+                             f"{st.session_state.result_text}\n\n"
+                             f"Warm regards,\nYour Automation Bot"
                             )
+msg.set_content(body)
 
-                        msg.set_content(body)
 
                         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
