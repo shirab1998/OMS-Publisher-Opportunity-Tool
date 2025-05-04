@@ -98,7 +98,7 @@ with tranco_col:
                 st.error("\u274C Invalid URL. Please paste a link like https://tranco-list.eu/list/ABC12/1000000")
 
 # --- INPUT SECTION ---
-if st.session_state.opportunities_table.empty:
+if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### \U0001F4DD Enter Publisher Details")
     pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
     pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
