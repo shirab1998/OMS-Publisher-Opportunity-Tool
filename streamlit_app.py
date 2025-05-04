@@ -112,13 +112,11 @@ st.session_state.setdefault("opportunities_table", pd.DataFrame())
 # --- LOAD TRANCO ---
 @st.cache_data
 def load_tranco_top_domains():
-    try:
-        df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
-        df = df[df["Rank"] <= TRANCO_THRESHOLD]
-        return dict(zip(df["Domain"].str.lower(), df["Rank"]))
-    except Exception as e:
-        st.error(f"Failed to load Tranco list: {e}")
+    if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         return {}
+    df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
+    df = df[df["Rank"] <= TRANCO_THRESHOLD]
+    return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
 tranco_rankings = load_tranco_top_domains()
 
