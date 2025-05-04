@@ -19,11 +19,22 @@ st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("\U0001F310 Tranco List")
+    st.header("🌐 Tranco List")
     if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         last_updated = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE))
         st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
     else:
+        st.warning("Tranco list not available")
+
+    st.markdown("---")
+    st.subheader("🕘 Recent Publishers")
+    if "history" in st.session_state:
+        for key, entry in reversed(list(st.session_state["history"].items())):
+            if st.button(f"{entry['name']} ({entry['id']})", key=key):
+                st.subheader(f"📜 Past Results: {entry['name']} ({entry['id']})")
+                st.caption(f"Generated on: {entry['date']}")
+                st.dataframe(entry['table'], use_container_width=True)
+                st.stop()
         st.warning("Tranco list not available")
 
 # --- FUNCTION TO FETCH TRANCO LIST ---
@@ -109,10 +120,12 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                         if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
                     }
                     if not domains and manual_domains_input:
-                        manual_lines = re.split(r'[,\n]+', manual_domains_input)
+                        manual_lines = re.split(r'[,
+]+', manual_domains_input)
                         domains = {d.strip().lower() for d in manual_lines if d.strip()}
                     results = []
                     progress = st.progress(0)
+                    progress_text = st.empty()
                     for idx, domain in enumerate(domains, start=1):
                         ads_url = f"https://{domain}/ads.txt"
                         try:
@@ -140,11 +153,21 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                         except Exception as e:
                             st.session_state.skipped_log.append((domain, f"Request error: {e}"))
                         progress.progress(idx / len(domains))
+                        progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
                     df_results = pd.DataFrame(results)
                     df_results.sort_values("Tranco Rank", inplace=True)
                     st.session_state.opportunities_table = df_results
-                    st.success("\u2705 Analysis complete")
+                    key = f"{pub_name}_{pub_id}"
+                    st.session_state.setdefault("history", {})
+                    st.session_state["history"][key] = {
+                        "name": pub_name,
+                        "id": pub_id,
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "table": df_results.copy()
+                    }
+                    st.success("✅ Analysis complete")
+                    st.balloons()
             except Exception as e:
                 st.error(f"Error while processing: {e}")
 
@@ -159,33 +182,21 @@ if not st.session_state.opportunities_table.empty:
     skipped = len(st.session_state.skipped_log)
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
-    # Interactive table
-    filtered_df = st.session_state.opportunities_table.copy()
-    filter_col1, filter_col2 = st.columns(2)
-    with filter_col1:
-        min_rank = st.number_input("Minimum Tranco Rank", min_value=1, max_value=210000, value=1)
-    with filter_col2:
-        max_rank = st.number_input("Maximum Tranco Rank", min_value=1, max_value=210000, value=210000)
-    filtered_df = filtered_df[(filtered_df["Tranco Rank"] >= min_rank) & (filtered_df["Tranco Rank"] <= max_rank)]
-
-    st.dataframe(filtered_df, use_container_width=True)
-    csv_data = filtered_df.to_csv(index=False)
-    st.download_button("⬇️ Download Opportunities CSV", data=csv_data, file_name="opportunities.csv", mime="text/csv")
-
-    # Email preview
-    with st.expander("📬 Preview Email"): 
-        html_table = filtered_df.to_html(index=False, border=1, justify='center', classes='styled-table')
-        preview_body = f"""
-        <html>
-          <body style='font-family: Arial; font-size: 14px;'>
-            <p>Hi there!</p>
-            <p>Here is the list of opportunities for <strong>{pub_name}</strong> ({pub_id}):</p>
-            {html_table}
-            <p>Warm regards,<br/>Automation bot</p>
-          </body>
-        </html>
-        """
-        st.markdown(preview_body, unsafe_allow_html=True)
+    # Show final table
+    # Style top 50K domains green
+styled_df = st.session_state.opportunities_table.copy()
+styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
+styled_df_display = styled_df.drop(columns=["Highlight"])
+st.dataframe(
+    styled_df_display.style.apply(
+        lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
+        axis=0
+    ),
+    use_container_width=True
+)
+    csv_data = st.session_state.opportunities_table.to_csv(index=False)
+    st.download_button("⬇️ Download Opportunities CSV", data=csv_data, file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
+    
 
 # --- EMAIL SECTION ---
 def sanitize_header(text):
@@ -255,12 +266,20 @@ if st.button("Send Email"):
                 smtp.send_message(msg)
 
             st.success("Email sent successfully!")
+            st.info("✅ Want to analyze another publisher? Update the fields above or refresh the page.")
         except Exception as e:
             st.error(f"Failed to send email: {e}")
 
+# --- START OVER BUTTON ---
+if st.button("🔁 Start Over"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.experimental_rerun()
+
 # --- SKIPPED DOMAINS REPORT ---
 if st.session_state.skipped_log:
-    st.subheader("\u274C Skipped Domains")
+    with st.expander("⛔ Skipped Domains", expanded=False):
+        st.subheader("⛔ Skipped Domains")
     skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
     st.dataframe(skipped_df, use_container_width=True)
     skipped_csv = skipped_df.to_csv(index=False)
