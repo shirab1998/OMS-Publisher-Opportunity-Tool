@@ -39,14 +39,14 @@ with st.sidebar:
                 styled["Highlight"] = styled["Tranco Rank"] <= 50000
                 styled_display = styled.drop(columns=["Highlight"])
                 st.dataframe(
-    styled_df_display.style.apply(
-        lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
-        axis=0
-    ),
-    use_container_width=True
-)
-csv_data = st.session_state.opportunities_table.to_csv(index=False)
-
+                    styled_display.style.apply(
+                        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
+                        axis=0
+                    ),
+                    use_container_width=True
+                )
+                st.stop()
+        st.warning("Tranco list not available")
 
 # --- FUNCTION TO FETCH TRANCO LIST ---
 def fetch_latest_tranco(output_file):
@@ -132,6 +132,7 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                     }
                     if not domains and manual_domains_input:
                         manual_lines = re.split(r'[\n,]+', manual_domains_input)
+
                         domains = {d.strip().lower() for d in manual_lines if d.strip()}
                     results = []
                     progress = st.progress(0)
@@ -198,10 +199,6 @@ styled_df = st.session_state.opportunities_table.copy()
 styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
 styled_df_display = styled_df.drop(columns=["Highlight"])
 st.dataframe(
-    styled_df_display.style.apply(
-        lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
-        axis=0
-    ),
     styled_df_display.style.apply(
         lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
         axis=0
