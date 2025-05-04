@@ -281,7 +281,7 @@ if st.button("Send Email"):
 if st.button("🔁 Start Over"):
     for key in list(st.session_state.keys()):
         del st.session_state[key]
-    st.experimental_rerun()
+    st.rerun()
 
 # --- SKIPPED DOMAINS REPORT ---
 if st.session_state.skipped_log:
