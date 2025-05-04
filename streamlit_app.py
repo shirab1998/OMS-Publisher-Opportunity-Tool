@@ -10,11 +10,20 @@ import re
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
-TRANCO_THRESHOLD = 300000
+TRANCO_THRESHOLD = 210000
 
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
 st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
+
+# --- SIDEBAR ---
+with st.sidebar:
+    st.header("\U0001F310 Tranco List")
+    if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
+        last_updated = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE))
+        st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+    else:
+        st.warning("Tranco list not available")
 
 # --- FUNCTION TO FETCH TRANCO LIST ---
 def fetch_latest_tranco(output_file):
@@ -40,63 +49,6 @@ def fetch_latest_tranco(output_file):
         st.error(f"Error downloading Tranco list: {e}")
         return False
 
-if "tranco_list_downloaded" not in st.session_state:
-    st.session_state.tranco_list_downloaded = os.path.exists(TRANCO_TOP_DOMAINS_FILE)
-
-# --- TRANCO UPDATE SECTION ---
-tranco_col = st.container()
-with tranco_col:
-    st.markdown("### \U0001F501 Tranco List Update")
-    if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        last_updated = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE))
-        delta = datetime.now() - last_updated
-        st.caption(f"\U0001F4C5 Tranco list last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        if delta.days >= 7:
-            if st.toggle("\u26A0\uFE0F Tranco list is over a week old. Click to open update options"):
-                st.markdown("[\U0001F310 Open Tranco Site](https://tranco-list.eu/) and copy any list link like:`https://tranco-list.eu/list/ABC12/1000000`")
-                custom_url = st.text_input("Paste Tranco list link here")
-                if st.button("\U0001F4E5 Download and Save Tranco List"):
-                    match = re.search(r"/list/([A-Z0-9]{5})", custom_url.strip())
-                    if match:
-                        list_id = match.group(1)
-                        download_url = f"https://tranco-list.eu/download/{list_id}/full"
-                        try:
-                            response = requests.get(download_url)
-                            if response.status_code == 200:
-                                with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                                    f.write(response.content)
-                                st.session_state.tranco_list_downloaded = True
-                                st.success("\u2705 Tranco list downloaded and saved.")
-                            else:
-                                st.error(f"Failed to download: HTTP {response.status_code}")
-                        except Exception as e:
-                            st.error(f"Download error: {e}")
-                    else:
-                        st.error("\u274C Invalid URL. Please paste a link like https://tranco-list.eu/list/ABC12/1000000")
-    else:
-        st.info("No Tranco list found yet.")
-        st.markdown("[\U0001F310 Open Tranco Site](https://tranco-list.eu/)")
-        custom_url = st.text_input("Paste full Tranco list link")
-        if st.button("\U0001F4E5 Download and Save Tranco List"):
-            match = re.search(r"/list/([A-Z0-9]{5})", custom_url.strip())
-            if match:
-                list_id = match.group(1)
-                download_url = f"https://tranco-list.eu/download/{list_id}/full"
-                try:
-                    response = requests.get(download_url)
-                    if response.status_code == 200:
-                        with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                            f.write(response.content)
-                        st.session_state.tranco_list_downloaded = True
-                        st.success("\u2705 Tranco list downloaded and saved.")
-                    else:
-                        st.error(f"Failed to download: HTTP {response.status_code}")
-                except Exception as e:
-                    st.error(f"Download error: {e}")
-            else:
-                st.error("\u274C Invalid URL. Please paste a link like https://tranco-list.eu/list/ABC12/1000000")
-
 # --- INPUT SECTION ---
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### \U0001F4DD Enter Publisher Details")
@@ -110,13 +62,11 @@ else:
     pub_id = st.session_state.get("pub_id", "")
     sample_direct_line = st.session_state.get("sample_direct_line", "")
 
-# --- SESSION STATE DEFAULTS ---
 st.session_state.setdefault("result_text", "")
 st.session_state.setdefault("results_ready", False)
 st.session_state.setdefault("skipped_log", [])
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
-# --- LOAD TRANCO ---
 @st.cache_data
 def load_tranco_top_domains():
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
@@ -127,7 +77,6 @@ def load_tranco_top_domains():
 
 tranco_rankings = load_tranco_top_domains()
 
-# --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("\U0001F50D Find Monetization Opportunities"):
     st.session_state["pub_domain"] = pub_domain
     st.session_state["pub_name"] = pub_name
@@ -156,6 +105,7 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                         if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
                     }
                     results = []
+                    progress = st.progress(0)
                     for idx, domain in enumerate(domains, start=1):
                         ads_url = f"https://{domain}/ads.txt"
                         try:
@@ -167,43 +117,61 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                                 st.session_state.skipped_log.append((domain, f"No {pub_name} direct line"))
                                 continue
 
-                            if any("onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower() for line in ads_lines):
-                                st.session_state.skipped_log.append((domain, "Already buying via OMS"))
-                                continue
-
                             if domain.lower() not in tranco_rankings:
                                 st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
                                 continue
 
+                            is_oms_buyer = any("onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower() for line in ads_lines)
+
                             rank = tranco_rankings[domain.lower()]
-                            tag = (
-                                f"{rank} on Tranco" if rank <= 1000 else
-                                f"Top 10K" if rank <= 10000 else
-                                f"Top 50K" if rank <= 50000 else
-                                f"Top 100K" if rank <= 100000 else
-                                f"Top {(rank + 49999) // 50000 * 50000:,}"
-                            )
-                            results.append({"#": len(results)+1, "Domain": domain, "Tranco Tag": tag, "Rank": rank})
-                            time.sleep(0.5)
+                            results.append({
+                                "Domain": domain,
+                                "Tranco Rank": rank,
+                                "OMS Buying": "🟢 Yes" if is_oms_buyer else "🔴 No"
+                            })
+                            time.sleep(0.1)
                         except Exception as e:
                             st.session_state.skipped_log.append((domain, f"Request error: {e}"))
+                        progress.progress(idx / len(domains))
 
                     df_results = pd.DataFrame(results)
-                    df_results.sort_values("Rank", inplace=True)
+                    df_results.sort_values("Tranco Rank", inplace=True)
                     st.session_state.opportunities_table = df_results
-
                     st.success("\u2705 Analysis complete")
             except Exception as e:
                 st.error(f"Error while processing: {e}")
 
-# --- RESULTS DISPLAY ---
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"\U0001F4C8 Opportunities for {pub_name} ({pub_id})")
-    st.dataframe(st.session_state.opportunities_table, use_container_width=True)
+    styled_df = st.session_state.opportunities_table.style.background_gradient(subset="Tranco Rank", cmap="Greens")
+    st.dataframe(styled_df, use_container_width=True)
+
     csv_data = st.session_state.opportunities_table.to_csv(index=False)
     st.download_button("\u2B07\uFE0F Download Opportunities CSV", data=csv_data, file_name="opportunities.csv", mime="text/csv")
 
-# --- SKIPPED DOMAINS REPORT ---
+    st.markdown("### \U0001F4E7 Email This List")
+    email_local_part = st.text_input("Enter username (email will be @onlinemediasolutions.com)")
+    if st.button("Send Email") and email_local_part:
+        try:
+            full_email = f"{email_local_part}@onlinemediasolutions.com"
+            from_email = st.secrets["EMAIL_ADDRESS"]
+            email_password = st.secrets["EMAIL_PASSWORD"]
+
+            msg = EmailMessage()
+            msg["Subject"] = f"Opportunities for {pub_name} ({pub_id})"
+            msg["From"] = from_email
+            msg["To"] = full_email
+            body = f"Hi there!\n\nHere is the list of opportunities for {pub_name} ({pub_id}):\n\n{st.session_state.opportunities_table.to_string(index=False)}\n\nWarm regards,\nAutomation bot"
+            msg.set_content(body)
+
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                smtp.login(from_email, email_password)
+                smtp.send_message(msg)
+
+            st.success("Email sent successfully!")
+        except Exception as e:
+            st.error(f"Failed to send email: {e}")
+
 if st.session_state.skipped_log:
     st.subheader("\u274C Skipped Domains")
     skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
