@@ -49,11 +49,11 @@ with st.sidebar:
     if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
         updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
         if is_recent(meta.get("timestamp", "")):
-            st.markdown(f"<div style='font-size: 90%; margin-bottom: 0.75em;'><span style='color: green;'>Last updated: {updated_time} ⬤ Up to date</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: green;'>Last updated: {updated_time}</span></div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"<div style='font-size: 90%; margin-bottom: 0.75em;'><span style='color: orange;'>Last updated: {updated_time} ⬤ Might be outdated</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: orange;'>Last updated: {updated_time} ⬤ Might be outdated</span></div>", unsafe_allow_html=True)
     else:
-        st.markdown("<div style='font-size: 90%; color: red; margin-bottom: 0.75em;'>⚠️ Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 85%; color: red; margin-bottom: 0.75em;'>⚠️ Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
         show_input = True
 
     if st.button("🔁 Manually Update Tranco List"):
@@ -77,7 +77,7 @@ with st.sidebar:
                         with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
                             f.write(response.content)
                         save_tranco_meta(tranco_id)
-                        st.success(f"\u2705 Downloaded Tranco list (ID: {tranco_id})")
+                        st.success(f"✅ Downloaded Tranco list (ID: {tranco_id})")
                         st.session_state["show_input"] = False
                         show_input = False
                     else:
@@ -123,7 +123,7 @@ def load_tranco_top_domains():
 
 tranco_rankings = load_tranco_top_domains()
 
-st.info("\u2705 Tranco list loaded and ready. You can proceed with domain analysis.")
+st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
 
 # --- INPUT SECTION ---
 st.markdown("### 📝 Enter Publisher Details")
