@@ -44,18 +44,22 @@ st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 with st.sidebar:
     st.header("\U0001F310 Tranco List")
     meta = get_tranco_meta()
-    show_input = True
+    show_input = st.session_state.get("show_input", False)
 
     if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
         updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
         style = "font-size: 70%;"
         if is_recent(meta.get("timestamp", "")):
             st.markdown(f"<div style='{style}'><span style='color: green;'>Last updated: {updated_time} \U0001F7E2 Up to date</span></div>", unsafe_allow_html=True)
-            show_input = False
         else:
             st.markdown(f"<div style='{style}'><span style='color: orange;'>Last updated: {updated_time} \U0001F7E1 Might be outdated</span></div>", unsafe_allow_html=True)
     else:
         st.markdown("<div style='font-size: 70%; color: red;'>\u26A0\ufe0f Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
+        show_input = True
+
+    if st.button("\U0001F501 Update Tranco List"):
+        st.session_state["show_input"] = True
+        show_input = True
 
     if show_input:
         st.markdown("[Visit Tranco list site](https://tranco-list.eu/) to get a link")
@@ -75,6 +79,8 @@ with st.sidebar:
                             f.write(response.content)
                         save_tranco_meta(tranco_id)
                         st.success(f"\u2705 Downloaded Tranco list (ID: {tranco_id})")
+                        st.session_state["show_input"] = False
+                        show_input = False
                     else:
                         st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
                 except Exception as e:
