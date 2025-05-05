@@ -129,15 +129,15 @@ st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    # Initialize manual_domains_input in session state if not already present
-    if "manual_domains_input" not in st.session_state:
-        st.session_state["manual_domains_input"] = ""
+    # State for manual mode toggle (based on expander)
+    if "manual_mode" not in st.session_state:
+        st.session_state["manual_mode"] = False
 
-    # Detect manual mode based on input content
-    is_manual_mode = bool(st.session_state["manual_domains_input"].strip())
+    def toggle_manual_mode():
+        st.session_state.manual_mode = not st.session_state.manual_mode
 
-    # Show domain and name fields only if not in manual mode
-    if not is_manual_mode:
+    # Show or hide domain and name based on manual mode state
+    if not st.session_state.manual_mode:
         pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
         pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
     else:
@@ -148,22 +148,27 @@ if "opportunities_table" not in st.session_state or st.session_state.opportuniti
     pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
     sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
 
-    # Manual Domains (always last, inside expander)
-    with st.expander("📄 Paste domains manually (optional)", expanded=is_manual_mode):
+    # Expander for manual domains input — triggers manual mode on expand
+    expanded = st.expander("📄 Paste domains manually (click to activate manual mode)", expanded=st.session_state.manual_mode)
+    with expanded:
+        # When user expands, enter manual mode; when collapsed, exit
+        # We assume the toggle happens based on the value being entered or not
+        previous_value = st.session_state.get("manual_domains_input", "")
         st.session_state["manual_domains_input"] = st.text_area(
             "Manual Domains (comma or newline separated)",
-            value=st.session_state["manual_domains_input"],
+            value=previous_value,
             height=100
         )
-
+        if not st.session_state.manual_mode and st.session_state["manual_domains_input"]:
+            st.session_state.manual_mode = True
+        elif st.session_state.manual_mode and not st.session_state["manual_domains_input"]:
+            st.session_state.manual_mode = False
 else:
     pub_domain = st.session_state.get("pub_domain", "")
     pub_name = st.session_state.get("pub_name", "")
     pub_id = st.session_state.get("pub_id", "")
     sample_direct_line = st.session_state.get("sample_direct_line", "")
     manual_domains_input = st.session_state.get("manual_domains_input", "")
-
-
 
 # Session defaults
 st.session_state.setdefault("result_text", "")
