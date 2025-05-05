@@ -15,8 +15,7 @@ TRANCO_THRESHOLD = 210000
 
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
-st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
-
+st.title("💡 Publisher Monetization Opportunity Finder")
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -65,7 +64,7 @@ def fetch_latest_tranco(output_file):
         if response.status_code == 200:
             with open(output_file, "wb") as f:
                 f.write(response.content)
-            st.success(f"\u2705 Downloaded Tranco list (ID: {list_id})")
+            st.success(f"✅ Downloaded Tranco list (ID: {list_id})")
             return True
         else:
             st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
@@ -105,7 +104,7 @@ def load_tranco_top_domains():
 tranco_rankings = load_tranco_top_domains()
 
 # --- MAIN FUNCTIONALITY BUTTON ---
-if st.button("\U0001F50D Find Monetization Opportunities"):
+if st.button("🔍 Find Monetization Opportunities"):
     st.session_state["pub_domain"] = pub_domain
     st.session_state["pub_name"] = pub_name
     st.session_state["pub_id"] = pub_id
@@ -114,7 +113,7 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
     if not all([pub_domain, pub_name, pub_id, sample_direct_line]):
         st.error("Please fill out all fields!")
     else:
-        with st.spinner("\U0001F50E Checking domains..."):
+        with st.spinner("🔎 Checking domains..."):
             try:
                 st.session_state.skipped_log = []
                 sellers_url = f"https://{pub_domain}/sellers.json"
@@ -141,7 +140,6 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                     for idx, domain in enumerate(domains, start=1):
                         try:
                             ads_url = f"https://{domain}/ads.txt"
-                        try:
                             ads_response = requests.get(ads_url, timeout=10)
                             ads_lines = ads_response.text.splitlines()
 
@@ -154,7 +152,6 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                                 st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
                                 continue
 
-                            # Skip if OMS is already buying DIRECT or RESELLER from this pub_id
                             if any(
                                 "onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower())
                                 for line in ads_lines
@@ -162,7 +159,6 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                                 st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
                                 continue
 
-                            # Flag if OMS is buying but with a different pub_id
                             is_oms_buyer = any(
                                 "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
                                 for line in ads_lines
@@ -200,7 +196,6 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
 # --- RESULTS DISPLAY ---
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"📈 Opportunities for {pub_name} ({pub_id})")
-
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
     oms_no = total - oms_yes
