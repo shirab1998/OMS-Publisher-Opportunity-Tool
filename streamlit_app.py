@@ -50,7 +50,7 @@ st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("🌐 Tranco List")
+    st.header("\U0001F310 Tranco List")
 
     tranco_meta = get_tranco_meta()
     show_tranco_input = False
@@ -60,9 +60,8 @@ with st.sidebar:
             last_updated = datetime.fromisoformat(tranco_meta["timestamp"])
             st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
             if not is_recent(tranco_meta["timestamp"]):
-                st.warning("\u26a0\ufe0f Tranco list is over 2 weeks old.")
-                if st.button("Update Tranco List"):
-                    show_tranco_input = True
+                st.warning("⚠️ Tranco list is over 2 weeks old.")
+                show_tranco_input = True
         else:
             st.warning("Tranco metadata missing. Update required.")
             show_tranco_input = True
@@ -71,31 +70,46 @@ with st.sidebar:
         show_tranco_input = True
 
     if show_tranco_input:
-        st.markdown("Enter Tranco URL (e.g. https://tranco-list.eu/list/93L52/1000000)")
-        custom_url = st.text_input("Tranco Source URL")
+        with st.expander("🔄 Update Tranco List", expanded=True):
+            st.markdown("Enter Tranco URL (e.g. https://tranco-list.eu/list/93L52/1000000)")
+            custom_url = st.text_input("Tranco Source URL")
 
-        if st.button("Fetch and Save Tranco List"):
-            match = re.search(r"/list/([A-Z0-9]{5})/", custom_url)
-            if not match:
-                st.error("❌ Invalid URL. Please paste a correct Tranco list URL.")
-            else:
-                tranco_id = match.group(1)
-                download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
-                try:
-                    response = requests.get(download_url)
-                    if response.status_code == 200:
-                        with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                            f.write(response.content)
-                        save_tranco_meta(tranco_id)
-                        st.success(f"✅ Tranco list updated successfully (ID: {tranco_id})")
-                        st.experimental_rerun()
-                    else:
-                        st.error(f"Download failed: HTTP {response.status_code}")
-                except Exception as e:
-                    st.error(f"Error fetching Tranco list: {e}")
+            if st.button("Fetch and Save Tranco List"):
+                match = re.search(r"/list/([A-Z0-9]{5})/", custom_url)
+                if not match:
+                    st.error("❌ Invalid URL. Please paste a correct Tranco list URL.")
+                else:
+                    tranco_id = match.group(1)
+                    download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
+                    try:
+                        response = requests.get(download_url)
+                        if response.status_code == 200:
+                            with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                                f.write(response.content)
+                            save_tranco_meta(tranco_id)
+                            st.success(f"✅ Tranco list updated successfully (ID: {tranco_id})")
+                            st.experimental_rerun()
+                        else:
+                            st.error(f"Download failed: HTTP {response.status_code}")
+                    except Exception as e:
+                        st.error(f"Error fetching Tranco list: {e}")
 
 # --- LOAD RANKINGS ---
 tranco_rankings = load_tranco_top_domains()
+
+# --- CONTINUE WITH FULL FUNCTIONALITY ---
+st.markdown("### 📝 Enter Publisher Details")
+pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
+pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
+pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+st.markdown("Or paste domains manually (if sellers.json not found):")
+manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100)
+
+st.session_state.setdefault("result_text", "")
+st.session_state.setdefault("results_ready", False)
+st.session_state.setdefault("skipped_log", [])
+st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
 # --- INPUT SECTION ---
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
