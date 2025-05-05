@@ -129,28 +129,32 @@ st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    # Temporary slot for manual domain input – placed last
-    manual_domains_slot = st.empty()
+    # Initialize manual_domains_input in session state if not already present
+    if "manual_domains_input" not in st.session_state:
+        st.session_state["manual_domains_input"] = ""
 
-    # Retrieve current manual domain value (used for logic)
-    manual_domains_input = st.session_state.get("manual_domains_input", "")
-    is_manual_mode = bool(manual_domains_input.strip())
+    # Detect manual mode based on input content
+    is_manual_mode = bool(st.session_state["manual_domains_input"].strip())
 
-    # Show conditionally based on manual mode
+    # Show domain and name fields only if not in manual mode
     if not is_manual_mode:
         pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
         pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
     else:
         pub_domain = ""
         pub_name = ""
-        st.info("Manual mode detected. Only Publisher ID and example ads.txt line are required.")
+        st.info("Manual mode active: Only Publisher ID and ads.txt line are required.")
 
     pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
     sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
 
-    # Visually place manual input LAST, and update state
-    manual_domains_input = manual_domains_slot.text_area("Paste domains manually (comma or newline separated)", height=100)
-    st.session_state["manual_domains_input"] = manual_domains_input
+    # Manual Domains (always last, inside expander)
+    with st.expander("📄 Paste domains manually (optional)", expanded=is_manual_mode):
+        st.session_state["manual_domains_input"] = st.text_area(
+            "Manual Domains (comma or newline separated)",
+            value=st.session_state["manual_domains_input"],
+            height=100
+        )
 
 else:
     pub_domain = st.session_state.get("pub_domain", "")
@@ -158,6 +162,7 @@ else:
     pub_id = st.session_state.get("pub_id", "")
     sample_direct_line = st.session_state.get("sample_direct_line", "")
     manual_domains_input = st.session_state.get("manual_domains_input", "")
+
 
 
 # Session defaults
