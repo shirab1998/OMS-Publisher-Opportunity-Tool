@@ -105,6 +105,7 @@ sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="c
 st.markdown("Or paste domains manually (if sellers.json not found):")
 manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100, key="manual_domains_input")
 
+# --- MONETIZATION CHECK ---
 if st.button("🔍 Find Monetization Opportunities"):
     st.session_state["pub_domain"] = pub_domain
     st.session_state["pub_name"] = pub_name
@@ -152,23 +153,17 @@ if st.button("🔍 Find Monetization Opportunities"):
                             st.session_state.skipped_log.append((domain, f"No {pub_name} direct line"))
                             continue
 
-                        if domain.lower() not in tranco_rankings:
-                            st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                        rank = tranco_rankings.get(domain.lower())
+                        if rank is None:
+                            st.session_state.skipped_log.append((domain, "Missing Tranco Rank"))
                             continue
 
-                        if any(
-                            "onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower())
-                            for line in ads_lines
-                        ):
+                        if any("onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower()) for line in ads_lines):
                             st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
                             continue
 
-                        is_oms_buyer = any(
-                            "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
-                            for line in ads_lines
-                        )
+                        is_oms_buyer = any("onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower() for line in ads_lines)
 
-                        rank = tranco_rankings[domain.lower()]
                         results.append({
                             "Domain": domain,
                             "Tranco Rank": rank,
@@ -184,18 +179,12 @@ if st.button("🔍 Find Monetization Opportunities"):
                 df_results = pd.DataFrame(results)
                 df_results.sort_values("Tranco Rank", inplace=True)
                 st.session_state.opportunities_table = df_results
-                key = f"{pub_name}_{pub_id}"
-                st.session_state.setdefault("history", {})
-                st.session_state["history"][key] = {
-                    "name": pub_name,
-                    "id": pub_id,
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "table": df_results.copy()
-                }
                 st.success("✅ Analysis complete")
                 st.balloons()
+
             except Exception as e:
                 st.error(f"Error while processing: {e}")
+
 
 # --- RESULTS DISPLAY ---
 if "opportunities_table" in st.session_state and not st.session_state.opportunities_table.empty:
