@@ -126,96 +126,26 @@ tranco_rankings = load_tranco_top_domains()
 st.info("\u2705 Tranco list loaded and ready. You can proceed with domain analysis.")
 
 # --- INPUT SECTION ---
-    else:
-        with st.spinner("🔎 Checking domains..."):
-            try:
-                st.session_state.skipped_log = []
-                results = []
-                domains = set()
+st.markdown("### 📝 Enter Publisher Details")
 
-                # Manual input fallback
-                if manual_domains_input.strip():
-                    manual_lines = re.split(r'[\\n,]+', manual_domains_input.strip())
-                    domains = {d.strip().lower() for d in manual_lines if d.strip()}
-                else:
-                    sellers_url = f"https://{pub_domain}/sellers.json"
-                    try:
-                        sellers_response = requests.get(sellers_url, timeout=10)
-                        sellers_data = sellers_response.json()
-                    except Exception:
-                        st.error(f"Invalid sellers.json at {sellers_url}")
-                        sellers_data = {}
+if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
+    pub_domain = st.text_input("Publisher Domain (optional if using manual domains)", placeholder="example.com")
+    pub_name = st.text_input("Publisher Name (optional if using manual domains)", placeholder="connatix.com")
+    pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+    st.markdown("Or paste domains manually (if sellers.json not found):")
+    manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100)
+else:
+    pub_domain = st.session_state.get("pub_domain", "")
+    pub_name = st.session_state.get("pub_name", "")
+    pub_id = st.session_state.get("pub_id", "")
+    sample_direct_line = st.session_state.get("sample_direct_line", "")
+    manual_domains_input = st.session_state.get("manual_domains_input", "")
 
-                    if "sellers" not in sellers_data:
-                        st.warning(f"No 'sellers' field in sellers.json for {pub_domain}")
-                    else:
-                        domains = {
-                            s.get("domain").lower() for s in sellers_data.get("sellers", [])
-                            if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
-                        }
-
-                if not domains:
-                    st.error("No domains to check.")
-                    st.stop()
-
-                progress = st.progress(0)
-                progress_text = st.empty()
-
-                for idx, domain in enumerate(domains, start=1):
-                    try:
-                        ads_url = f"https://{domain}/ads.txt"
-                        ads_response = requests.get(ads_url, timeout=10)
-                        ads_lines = ads_response.text.splitlines()
-
-                        # Must contain the publisher's own direct line
-                        has_direct = any(line.strip().lower().startswith(sample_direct_line.split(',')[0].strip().lower()) and "direct" in line.lower() for line in ads_lines)
-                        if not has_direct:
-                            st.session_state.skipped_log.append((domain, f"No {sample_direct_line.split(',')[0]} direct line"))
-                            continue
-
-                        # Skip if OMS is already buying with this publisher ID
-                        if any("onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower()) for line in ads_lines):
-                            st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
-                            continue
-
-                        # Check for OMS line with a different pub ID
-                        is_oms_buyer = any("onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower() for line in ads_lines)
-
-                        # Skip if not in top 210k
-                        if domain.lower() not in tranco_rankings:
-                            st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
-                            continue
-
-                        rank = tranco_rankings[domain.lower()]
-                        results.append({
-                            "Domain": domain,
-                            "Tranco Rank": rank,
-                            "OMS Buying": "Yes" if is_oms_buyer else "No"
-                        })
-                        time.sleep(0.1)
-
-                    except Exception as e:
-                        st.session_state.skipped_log.append((domain, f"Request error: {e}"))
-                    progress.progress(idx / len(domains))
-                    progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
-
-                df_results = pd.DataFrame(results)
-                df_results.sort_values("Tranco Rank", inplace=True)
-                st.session_state.opportunities_table = df_results
-                key = f"{pub_name or 'manual'}_{pub_id}"
-                st.session_state.setdefault("history", {})
-                st.session_state["history"][key] = {
-                    "name": pub_name or 'manual',
-                    "id": pub_id,
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "table": df_results.copy()
-                }
-                st.success("✅ Analysis complete")
-                st.balloons()
-
-            except Exception as e:
-                st.error(f"Error while processing: {e}")
-
+st.session_state.setdefault("result_text", "")
+st.session_state.setdefault("results_ready", False)
+st.session_state.setdefault("skipped_log", [])
+st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
