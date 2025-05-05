@@ -136,14 +136,14 @@ if st.button("🔍 Find Monetization Opportunities"):
             else:
                 sellers_url = f"https://{pub_domain}/sellers.json"
                 try:
-sellers_response = requests.get(sellers_url, timeout=10)
-if sellers_response.status_code == 200:
-    try:
-        sellers_data = sellers_response.json()
-        if "sellers" in sellers_data:
-            domains = {
-                s.get("domain").lower() for s in sellers_data["sellers"]
-                if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
+                    sellers_response = requests.get(sellers_url, timeout=10)
+                    if sellers_response.status_code == 200:
+                        try:
+                            sellers_data = sellers_response.json()
+                            if "sellers" in sellers_data:
+                                domains = {
+                                    s.get("domain").lower() for s in sellers_data["sellers"]
+                                    if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
             }
         else:
             st.warning("No 'sellers' field found in sellers.json.")
