@@ -253,6 +253,8 @@ if st.button("🔍 Find Monetization Opportunities"):
                 st.error(f"Error while processing: {e}")
 
 # --- RESULTS DISPLAY ---
+st.session_state.setdefault("opportunities_table", pd.DataFrame())
+
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
     total = len(st.session_state.opportunities_table)
