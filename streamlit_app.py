@@ -144,13 +144,13 @@ if st.button("🔍 Find Monetization Opportunities"):
                                 domains = {
                                     s.get("domain").lower() for s in sellers_data["sellers"]
                                     if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
-            }
-        else:
-            st.warning("No 'sellers' field found in sellers.json.")
+                                    }
+                                        else:
+                                            st.warning("No 'sellers' field found in sellers.json.")
     except Exception:
         st.warning("Could not parse sellers.json — fallback to manual or check formatting.")
-else:
-    st.error(f"Could not fetch sellers.json from {sellers_url} (Status: {sellers_response.status_code})")
+                    else:
+                        st.error(f"Could not fetch sellers.json from {sellers_url} (Status: {sellers_response.status_code})")
 
                     if "sellers" in sellers_data:
                         domains = {
