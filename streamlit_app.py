@@ -5,73 +5,97 @@ import time
 from datetime import datetime
 import os
 import re
+import json
 import smtplib
 from email.message import EmailMessage
 import unicodedata
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
+TRANCO_META_FILE = "/tmp/tranco_meta.json"
 TRANCO_THRESHOLD = 210000
+
+# --- FUNCTIONS FOR TRANCO ---
+def get_tranco_meta():
+    if os.path.exists(TRANCO_META_FILE):
+        with open(TRANCO_META_FILE, "r") as f:
+            return json.load(f)
+    return None
+
+def save_tranco_meta(tranco_id):
+    with open(TRANCO_META_FILE, "w") as f:
+        json.dump({
+            "id": tranco_id,
+            "timestamp": datetime.now().isoformat()
+        }, f)
+
+def is_recent(date_str):
+    try:
+        ts = datetime.fromisoformat(date_str)
+        return (datetime.now() - ts).days < 14
+    except:
+        return False
+
+@st.cache_data
+def load_tranco_top_domains():
+    if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
+        return {}
+    df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
+    df = df[df["Rank"] <= TRANCO_THRESHOLD]
+    return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
-st.title("💡 Publisher Monetization Opportunity Finder")
+st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("🌐 Tranco List")
+
+    tranco_meta = get_tranco_meta()
+    show_tranco_input = False
+
     if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        last_updated = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE))
-        st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
-    else:
-        st.warning("Tranco list not available")
-
-    st.markdown("---")
-    st.subheader("🕘 Recent Publishers")
-    if "history" in st.session_state:
-        recent_keys = list(reversed(list(st.session_state["history"].keys())))[:10]
-        for key in recent_keys:
-            entry = st.session_state["history"][key]
-            label = f"{entry['name']} ({entry['id']})"
-            small_date = f"<div style='font-size: 12px; color: gray;'>Generated: {entry['date']}</div>"
-            if st.button(label, key=key):
-                st.subheader(f"📜 Past Results: {entry['name']} ({entry['id']})")
-                st.markdown(small_date, unsafe_allow_html=True)
-                styled = entry['table'].copy()
-                styled["Highlight"] = styled["Tranco Rank"] <= 50000
-                styled_display = styled.drop(columns=["Highlight"])
-                st.dataframe(
-                    styled_display.style.apply(
-                        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
-                        axis=0
-                    ),
-                    use_container_width=True
-                )
-                st.stop()
-
-# --- FUNCTION TO FETCH TRANCO LIST ---
-def fetch_latest_tranco(output_file):
-    try:
-        homepage = requests.get("https://tranco-list.eu")
-        match = re.search(r'href=\"/list/([A-Z0-9]{5})\"', homepage.text)
-        if not match:
-            st.error("Could not extract latest Tranco list ID from homepage.")
-            return False
-
-        list_id = match.group(1)
-        download_url = f"https://tranco-list.eu/download/{list_id}/full"
-        response = requests.get(download_url)
-        if response.status_code == 200:
-            with open(output_file, "wb") as f:
-                f.write(response.content)
-            st.success(f"✅ Downloaded Tranco list (ID: {list_id})")
-            return True
+        if tranco_meta:
+            last_updated = datetime.fromisoformat(tranco_meta["timestamp"])
+            st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+            if not is_recent(tranco_meta["timestamp"]):
+                st.warning("\u26a0\ufe0f Tranco list is over 2 weeks old.")
+                if st.button("Update Tranco List"):
+                    show_tranco_input = True
         else:
-            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        st.error(f"Error downloading Tranco list: {e}")
-        return False
+            st.warning("Tranco metadata missing. Update required.")
+            show_tranco_input = True
+    else:
+        st.warning("❌ Tranco list not available.")
+        show_tranco_input = True
+
+    if show_tranco_input:
+        st.markdown("Enter Tranco URL (e.g. https://tranco-list.eu/list/93L52/1000000)")
+        custom_url = st.text_input("Tranco Source URL")
+
+        if st.button("Fetch and Save Tranco List"):
+            match = re.search(r"/list/([A-Z0-9]{5})/", custom_url)
+            if not match:
+                st.error("❌ Invalid URL. Please paste a correct Tranco list URL.")
+            else:
+                tranco_id = match.group(1)
+                download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
+                try:
+                    response = requests.get(download_url)
+                    if response.status_code == 200:
+                        with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                            f.write(response.content)
+                        save_tranco_meta(tranco_id)
+                        st.success(f"✅ Tranco list updated successfully (ID: {tranco_id})")
+                        st.experimental_rerun()
+                    else:
+                        st.error(f"Download failed: HTTP {response.status_code}")
+                except Exception as e:
+                    st.error(f"Error fetching Tranco list: {e}")
+
+# --- LOAD RANKINGS ---
+tranco_rankings = load_tranco_top_domains()
 
 # --- INPUT SECTION ---
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
