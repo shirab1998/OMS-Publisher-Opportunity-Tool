@@ -1,3 +1,4 @@
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -8,10 +9,33 @@ import re
 import smtplib
 from email.message import EmailMessage
 import unicodedata
+import json
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
+TRANCO_META_FILE = "/tmp/tranco_meta.json"
 TRANCO_THRESHOLD = 210000
+
+# --- FUNCTIONS FOR TRANCO ---
+def get_tranco_meta():
+    if os.path.exists(TRANCO_META_FILE):
+        with open(TRANCO_META_FILE, "r") as f:
+            return json.load(f)
+    return None
+
+def save_tranco_meta(tranco_id):
+    with open(TRANCO_META_FILE, "w") as f:
+        json.dump({
+            "id": tranco_id,
+            "timestamp": datetime.now().isoformat()
+        }, f)
+
+def is_recent(date_str):
+    try:
+        ts = datetime.fromisoformat(date_str)
+        return (datetime.now() - ts).days < 14
+    except:
+        return False
 
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
@@ -20,36 +44,36 @@ st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("\U0001F310 Tranco List")
-    if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        last_updated = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE))
-        st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+    meta = get_tranco_meta()
+    if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
+        updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
+        if is_recent(meta.get("timestamp", "")):
+            st.success(f"Last updated: {updated_time} \U0001F7E2 Up to date")
+        else:
+            st.warning(f"Last updated: {updated_time} \U0001F7E1 Might be outdated")
     else:
-        st.warning("Tranco list not available")
+        st.error("\u26A0\ufe0f Tranco list not found. Please paste a Tranco list URL below.")
 
-    if st.button("\U0001F501 Update Tranco List"):
-        def fetch_latest_tranco(output_file):
+    st.text_input("Paste Tranco List URL (e.g. https://tranco-list.eu/list/93L52/1000000)", key="tranco_url")
+    if st.button("\U0001F4E5 Download Tranco List"):
+        url = st.session_state.get("tranco_url", "")
+        match = re.search(r"/list/([a-zA-Z0-9]{5,})/", url)
+        if not match:
+            st.error("Invalid Tranco URL format.")
+        else:
+            tranco_id = match.group(1)
+            download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
             try:
-                homepage = requests.get("https://tranco-list.eu")
-                match = re.search(r'/list/([a-zA-Z0-9]{5,})/1000000', homepage.text)
-                if not match:
-                    st.error("Could not extract latest Tranco list ID from homepage.")
-                    return False
-                list_id = match.group(1)
-                download_url = f"https://tranco-list.eu/download/{list_id}/full"
                 response = requests.get(download_url)
                 if response.status_code == 200:
-                    with open(output_file, "wb") as f:
+                    with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
                         f.write(response.content)
-                    st.success(f"\u2705 Downloaded Tranco list (ID: {list_id})")
-                    return True
+                    save_tranco_meta(tranco_id)
+                    st.success(f"\u2705 Downloaded Tranco list (ID: {tranco_id})")
                 else:
-                    st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
-                    return False
+                    st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
             except Exception as e:
                 st.error(f"Error downloading Tranco list: {e}")
-                return False
-
-        fetch_latest_tranco(TRANCO_TOP_DOMAINS_FILE)
 
     st.markdown("---")
     st.subheader("\U0001F553 Recent Publishers")
@@ -79,15 +103,13 @@ with st.sidebar:
 def load_tranco_top_domains():
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         return {}
-    df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE)
-    if "Rank" not in df.columns or "Domain" not in df.columns:
-        st.error("Tranco CSV missing required columns: 'Rank' and 'Domain'")
-        return {}
+    df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
     df = df[df["Rank"] <= TRANCO_THRESHOLD]
     return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
 tranco_rankings = load_tranco_top_domains()
 
+st.info("\u2705 Tranco list loaded and ready. You can proceed with domain analysis.")
 
 # --- INPUT SECTION ---
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
@@ -108,16 +130,6 @@ st.session_state.setdefault("result_text", "")
 st.session_state.setdefault("results_ready", False)
 st.session_state.setdefault("skipped_log", [])
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
-
-@st.cache_data
-def load_tranco_top_domains():
-    if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        return {}
-    df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
-    df = df[df["Rank"] <= TRANCO_THRESHOLD]
-    return dict(zip(df["Domain"].str.lower(), df["Rank"]))
-
-tranco_rankings = load_tranco_top_domains()
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
@@ -148,7 +160,8 @@ if st.button("🔍 Find Monetization Opportunities"):
                         if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
                     }
                     if not domains and manual_domains_input:
-                        manual_lines = re.split(r'[\n,]+', manual_domains_input)
+                        manual_lines = re.split(r'[
+,]+', manual_domains_input)
                         domains = {d.strip().lower() for d in manual_lines if d.strip()}
                     results = []
                     progress = st.progress(0)
@@ -164,10 +177,6 @@ if st.button("🔍 Find Monetization Opportunities"):
                                 st.session_state.skipped_log.append((domain, f"No {pub_name} direct line"))
                                 continue
 
-                            if domain.lower() not in tranco_rankings:
-                                st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
-                                continue
-
                             if any(
                                 "onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower())
                                 for line in ads_lines
@@ -179,6 +188,10 @@ if st.button("🔍 Find Monetization Opportunities"):
                                 "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
                                 for line in ads_lines
                             )
+
+                            if domain.lower() not in tranco_rankings:
+                                st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                                continue
 
                             rank = tranco_rankings[domain.lower()]
                             results.append({
@@ -236,7 +249,9 @@ if not st.session_state.opportunities_table.empty:
 def sanitize_header(text):
     text = unicodedata.normalize("NFKD", text)
     text = re.sub(r'[^ -~]', '', text)
-    text = text.strip().replace("\r", "").replace("\n", "")
+    text = text.strip().replace("
+", "").replace("
+", "")
     return text
 
 st.markdown("### 📧 Email This List")
@@ -321,4 +336,3 @@ if st.session_state.skipped_log:
         st.dataframe(skipped_df, use_container_width=True)
         skipped_csv = skipped_df.to_csv(index=False)
         st.download_button("⬇️ Download Skipped Domains CSV", data=skipped_csv, file_name="skipped_domains.csv", mime="text/csv")
-st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
