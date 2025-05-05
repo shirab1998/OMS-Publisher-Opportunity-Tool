@@ -139,7 +139,6 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                     progress = st.progress(0)
                     progress_text = st.empty()
                     for idx, domain in enumerate(domains, start=1):
-                        ads_url = f"https://{domain}/ads.txt"
                         try:
                             ads_url = f"https://{domain}/ads.txt"
                         try:
