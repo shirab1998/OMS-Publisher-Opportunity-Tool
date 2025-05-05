@@ -373,6 +373,8 @@ if st.button("🔁 Start Over"):
     st.rerun()
 
 # --- SKIPPED DOMAINS REPORT ---
+st.session_state.setdefault("skipped_log", [])
+
 if st.session_state.skipped_log:
     with st.expander("⛔ Skipped Domains", expanded=False):
         st.subheader("⛔ Skipped Domains")
@@ -386,3 +388,4 @@ if st.session_state.skipped_log:
             file_name="skipped_domains.csv",
             mime="text/csv"
         )
+
