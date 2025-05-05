@@ -176,8 +176,8 @@ if st.button("🔍 Find Monetization Opportunities"):
                     progress.progress(idx / len(domains))
                     progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
                 if results:
-                     df_results = pd.DataFrame(results)
-                     if "Tranco Rank" in df_results.columns:
+                    df_results = pd.DataFrame(results)
+                    if "Tranco Rank" in df_results.columns:
                         df_results.sort_values("Tranco Rank", inplace=True)
                     st.session_state.opportunities_table = df_results
                     st.success("✅ Analysis complete")
