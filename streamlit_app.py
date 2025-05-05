@@ -129,9 +129,15 @@ st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    # Default to empty for state
+    # Always ask for manual domains at the bottom (but read it early to detect mode)
+    manual_domains_input = ""
+    manual_domains_slot = st.empty()
+
+    # Temporarily store empty values
     pub_domain, pub_name = "", ""
-    manual_domains_input = st.text_area("Paste domains manually (comma or newline separated)", height=100)
+
+    # Check session if previously stored
+    manual_domains_input = st.session_state.get("manual_domains_input", "")
     is_manual = bool(manual_domains_input.strip())
 
     if not is_manual:
@@ -143,13 +149,15 @@ if "opportunities_table" not in st.session_state or st.session_state.opportuniti
     pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
     sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
 
+    # Display manual input LAST
+    manual_domains_input = manual_domains_slot.text_area("Paste domains manually (comma or newline separated)", height=100)
+
 else:
     pub_domain = st.session_state.get("pub_domain", "")
     pub_name = st.session_state.get("pub_name", "")
     pub_id = st.session_state.get("pub_id", "")
     sample_direct_line = st.session_state.get("sample_direct_line", "")
     manual_domains_input = st.session_state.get("manual_domains_input", "")
-
 
 
 
