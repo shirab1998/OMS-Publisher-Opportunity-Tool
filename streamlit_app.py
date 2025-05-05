@@ -5,36 +5,93 @@ import time
 from datetime import datetime
 import os
 import re
-import json
 import smtplib
 from email.message import EmailMessage
 import unicodedata
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
-TRANCO_META_FILE = "/tmp/tranco_meta.json"
 TRANCO_THRESHOLD = 210000
 
-# --- FUNCTIONS FOR TRANCO ---
-def get_tranco_meta():
-    if os.path.exists(TRANCO_META_FILE):
-        with open(TRANCO_META_FILE, "r") as f:
-            return json.load(f)
-    return None
+# --- STREAMLIT INTERFACE ---
+st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
+st.title("💡 Publisher Monetization Opportunity Finder")
 
-def save_tranco_meta(tranco_id):
-    with open(TRANCO_META_FILE, "w") as f:
-        json.dump({
-            "id": tranco_id,
-            "timestamp": datetime.now().isoformat()
-        }, f)
+# --- SIDEBAR ---
+with st.sidebar:
+    st.header("🌐 Tranco List")
+    if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
+        last_updated = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE))
+        st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+    else:
+        st.warning("Tranco list not available")
 
-def is_recent(date_str):
+    st.markdown("---")
+    st.subheader("🕘 Recent Publishers")
+    if "history" in st.session_state:
+        recent_keys = list(reversed(list(st.session_state["history"].keys())))[:10]
+        for key in recent_keys:
+            entry = st.session_state["history"][key]
+            label = f"{entry['name']} ({entry['id']})"
+            small_date = f"<div style='font-size: 12px; color: gray;'>Generated: {entry['date']}</div>"
+            if st.button(label, key=key):
+                st.subheader(f"📜 Past Results: {entry['name']} ({entry['id']})")
+                st.markdown(small_date, unsafe_allow_html=True)
+                styled = entry['table'].copy()
+                styled["Highlight"] = styled["Tranco Rank"] <= 50000
+                styled_display = styled.drop(columns=["Highlight"])
+                st.dataframe(
+                    styled_display.style.apply(
+                        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
+                        axis=0
+                    ),
+                    use_container_width=True
+                )
+                st.stop()
+
+# --- FUNCTION TO FETCH TRANCO LIST ---
+def fetch_latest_tranco(output_file):
     try:
-        ts = datetime.fromisoformat(date_str)
-        return (datetime.now() - ts).days < 14
-    except:
+        homepage = requests.get("https://tranco-list.eu")
+        match = re.search(r'href=\"/list/([A-Z0-9]{5})\"', homepage.text)
+        if not match:
+            st.error("Could not extract latest Tranco list ID from homepage.")
+            return False
+
+        list_id = match.group(1)
+        download_url = f"https://tranco-list.eu/download/{list_id}/full"
+        response = requests.get(download_url)
+        if response.status_code == 200:
+            with open(output_file, "wb") as f:
+                f.write(response.content)
+            st.success(f"✅ Downloaded Tranco list (ID: {list_id})")
+            return True
+        else:
+            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
+            return False
+    except Exception as e:
+        st.error(f"Error downloading Tranco list: {e}")
         return False
+
+# --- INPUT SECTION ---
+if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
+    st.markdown("### 📝 Enter Publisher Details")
+    pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
+    pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
+    pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+    st.markdown("Or paste domains manually (if sellers.json not found):")
+    manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100)
+else:
+    pub_domain = st.session_state.get("pub_domain", "")
+    pub_name = st.session_state.get("pub_name", "")
+    pub_id = st.session_state.get("pub_id", "")
+    sample_direct_line = st.session_state.get("sample_direct_line", "")
+
+st.session_state.setdefault("result_text", "")
+st.session_state.setdefault("results_ready", False)
+st.session_state.setdefault("skipped_log", [])
+st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
 @st.cache_data
 def load_tranco_top_domains():
@@ -44,68 +101,9 @@ def load_tranco_top_domains():
     df = df[df["Rank"] <= TRANCO_THRESHOLD]
     return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
-# --- STREAMLIT INTERFACE ---
-st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
-st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
-
-# --- SIDEBAR ---
-with st.sidebar:
-    st.header("\U0001F310 Tranco List")
-
-    tranco_meta = get_tranco_meta()
-    tranco_exists = os.path.exists(TRANCO_TOP_DOMAINS_FILE)
-    update_triggered = st.session_state.get("show_tranco_input", False)
-
-    if tranco_exists and tranco_meta:
-        last_updated = datetime.fromisoformat(tranco_meta["timestamp"])
-        st.markdown(f"**Last Tranco update:** {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
-        if is_recent(tranco_meta["timestamp"]):
-            st.success("✅ The Tranco file is up to date.")
-        if st.button("Update Tranco File", key="update_tranco_file_btn"):
-            st.session_state["show_tranco_input"] = True
-            st.rerun()
-    elif not tranco_exists:
-        st.markdown("**❌ No Tranco list available**")
-        update_triggered = True
-
-    if update_triggered:
-        st.markdown("[Tranco link](https://tranco-list.eu)")
-        st.markdown("**Add latest Tranco list URL:**")
-        custom_url = st.text_input("", placeholder="https://tranco-list.eu/list/XXXXX/1000000", key="tranco_url")
-        if st.button("Save Tranco List", key="save_tranco_list_btn"):
-            match = re.search(r"/list/([A-Z0-9]{5})/", custom_url)
-            if not match:
-                st.error("❌ Invalid URL. Please paste a correct Tranco list URL.")
-            else:
-                tranco_id = match.group(1)
-                download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
-                try:
-                    response = requests.get(download_url)
-                    if response.status_code == 200:
-                        with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                            f.write(response.content)
-                        save_tranco_meta(tranco_id)
-                        st.success(f"✅ Tranco list updated successfully (ID: {tranco_id})")
-                        st.session_state["show_tranco_input"] = False
-                        st.rerun()
-                    else:
-                        st.error(f"Download failed: HTTP {response.status_code}")
-                except Exception as e:
-                    st.error(f"Error fetching Tranco list: {e}")
-
-# --- LOAD RANKINGS ---
 tranco_rankings = load_tranco_top_domains()
 
-# --- PUBLISHER FORM ---
-st.markdown("### 📝 Enter Publisher Details")
-pub_domain = st.text_input("Publisher Domain", placeholder="example.com", key="pub_domain_input")
-pub_name = st.text_input("Publisher Name", placeholder="connatix.com", key="pub_name_input")
-pub_id = st.text_input("Publisher ID", placeholder="1536788745730056", key="pub_id_input")
-sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT", key="sample_direct_line_input")
-st.markdown("Or paste domains manually (if sellers.json not found):")
-manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100, key="manual_domains_input")
-
-# --- MONETIZATION CHECK ---
+# --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
     st.session_state["pub_domain"] = pub_domain
     st.session_state["pub_name"] = pub_name
@@ -128,70 +126,75 @@ if st.button("🔍 Find Monetization Opportunities"):
 
                 if "sellers" not in sellers_data:
                     st.warning(f"No 'sellers' field in sellers.json for {pub_domain}")
-                    domains = set()
                 else:
                     domains = {
                         s.get("domain").lower() for s in sellers_data.get("sellers", [])
                         if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
                     }
+                    if not domains and manual_domains_input:
+                        manual_lines = re.split(r'[\n,]+', manual_domains_input)
+                        domains = {d.strip().lower() for d in manual_lines if d.strip()}
+                    results = []
+                    progress = st.progress(0)
+                    progress_text = st.empty()
+                    for idx, domain in enumerate(domains, start=1):
+                        try:
+                            ads_url = f"https://{domain}/ads.txt"
+                            ads_response = requests.get(ads_url, timeout=10)
+                            ads_lines = ads_response.text.splitlines()
 
-                if not domains and manual_domains_input:
-                    manual_lines = re.split(r'[\n,]+', manual_domains_input)
-                    domains = {d.strip().lower() for d in manual_lines if d.strip()}
+                            has_direct = any(line.strip().lower().startswith(pub_name.lower()) and "direct" in line.lower() for line in ads_lines)
+                            if not has_direct:
+                                st.session_state.skipped_log.append((domain, f"No {pub_name} direct line"))
+                                continue
 
-                results = []
-                progress = st.progress(0)
-                progress_text = st.empty()
-                for idx, domain in enumerate(domains, start=1):
-                    try:
-                        ads_url = f"https://{domain}/ads.txt"
-                        ads_response = requests.get(ads_url, timeout=10)
-                        ads_lines = ads_response.text.splitlines()
+                            if domain.lower() not in tranco_rankings:
+                                st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                                continue
 
-                        has_direct = any(line.strip().lower().startswith(pub_name.lower()) and "direct" in line.lower() for line in ads_lines)
-                        if not has_direct:
-                            st.session_state.skipped_log.append((domain, f"No {pub_name} direct line"))
-                            continue
+                            if any(
+                                "onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower())
+                                for line in ads_lines
+                            ):
+                                st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
+                                continue
 
-                        rank = tranco_rankings.get(domain.lower())
-                        if rank is None:
-                            st.session_state.skipped_log.append((domain, "Missing Tranco Rank"))
-                            continue
+                            is_oms_buyer = any(
+                                "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
+                                for line in ads_lines
+                            )
 
-                        if any("onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower()) for line in ads_lines):
-                            st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
-                            continue
+                            rank = tranco_rankings[domain.lower()]
+                            results.append({
+                                "Domain": domain,
+                                "Tranco Rank": rank,
+                                "OMS Buying": "Yes" if is_oms_buyer else "No"
+                            })
+                            time.sleep(0.1)
 
-                        is_oms_buyer = any("onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower() for line in ads_lines)
+                        except Exception as e:
+                            st.session_state.skipped_log.append((domain, f"Request error: {e}"))
+                        progress.progress(idx / len(domains))
+                        progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
-                        results.append({
-                            "Domain": domain,
-                            "Tranco Rank": rank,
-                            "OMS Buying": "Yes" if is_oms_buyer else "No"
-                        })
-                        time.sleep(0.1)
-
-                    except Exception as e:
-                        st.session_state.skipped_log.append((domain, f"Request error: {e}"))
-                    progress.progress(idx / len(domains))
-                    progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
-                if results:
                     df_results = pd.DataFrame(results)
-                    if "Tranco Rank" in df_results.columns:
-                        df_results.sort_values("Tranco Rank", inplace=True)
+                    df_results.sort_values("Tranco Rank", inplace=True)
                     st.session_state.opportunities_table = df_results
+                    key = f"{pub_name}_{pub_id}"
+                    st.session_state.setdefault("history", {})
+                    st.session_state["history"][key] = {
+                        "name": pub_name,
+                        "id": pub_id,
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "table": df_results.copy()
+                    }
                     st.success("✅ Analysis complete")
                     st.balloons()
-                else:
-                    st.warning("No valid monetization opportunities found.")
-
-
             except Exception as e:
                 st.error(f"Error while processing: {e}")
 
-
 # --- RESULTS DISPLAY ---
-if "opportunities_table" in st.session_state and not st.session_state.opportunities_table.empty:
+if not st.session_state.opportunities_table.empty:
     st.subheader(f"📈 Opportunities for {pub_name} ({pub_id})")
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
@@ -295,7 +298,7 @@ if st.button("🔁 Start Over"):
     st.rerun()
 
 # --- SKIPPED DOMAINS REPORT ---
-if st.session_state.get("skipped_log"):
+if st.session_state.skipped_log:
     with st.expander("⛔ Skipped Domains", expanded=False):
         st.subheader("⛔ Skipped Domains")
         skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
