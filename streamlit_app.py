@@ -163,8 +163,7 @@ if st.button("🔍 Find Monetization Opportunities"):
                         if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
                     }
                     if not domains and manual_domains_input:
-                        manual_lines = re.split(r'[
-,]+', manual_domains_input)
+                        manual_lines = re.split(r'[,]+', manual_domains_input)
                         domains = {d.strip().lower() for d in manual_lines if d.strip()}
                     results = []
                     progress = st.progress(0)
