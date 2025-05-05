@@ -103,10 +103,8 @@ with st.sidebar:
 # --- INPUT SECTION ---
 st.markdown("### 📝 Enter Publisher Details")
 
-# Toggle for manual mode
 manual_mode = st.checkbox("🔀 Use Manual Domains Instead", value=False)
 
-# Show standard or manual fields based on toggle
 if not manual_mode:
     pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
     pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
@@ -144,23 +142,15 @@ if st.button("🔍 Find Monetization Opportunities"):
                                 domains = {
                                     s.get("domain").lower() for s in sellers_data["sellers"]
                                     if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
-                                    }
-                                        else:
-                                            st.warning("No 'sellers' field found in sellers.json.")
-    except Exception:
-        st.warning("Could not parse sellers.json — fallback to manual or check formatting.")
+                                }
+                            else:
+                                st.warning("No 'sellers' field found in sellers.json.")
+                        except Exception:
+                            st.warning("Could not parse sellers.json — fallback to manual or check formatting.")
                     else:
                         st.error(f"Could not fetch sellers.json from {sellers_url} (Status: {sellers_response.status_code})")
-
-                    if "sellers" in sellers_data:
-                        domains = {
-                            s.get("domain").lower() for s in sellers_data["sellers"]
-                            if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
-                        }
-                    else:
-                        st.warning("No sellers field in sellers.json. Provide manual domains if needed.")
-                except Exception:
-                    st.error(f"Invalid sellers.json at {sellers_url}")
+                except Exception as e:
+                    st.error(f"Invalid sellers.json at {sellers_url}: {e}")
 
             if not domains:
                 st.error("No valid domains found to check.")
@@ -239,3 +229,4 @@ if not st.session_state.opportunities_table.empty:
         styled_df.style.apply(highlight, axis=1),
         use_container_width=True
     )
+
