@@ -57,7 +57,7 @@ with st.sidebar:
         st.markdown("<div style='font-size: 70%; color: red;'>\u26A0\ufe0f Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
         show_input = True
 
-    if st.button("\U0001F501 Update Tranco List"):
+    if st.button("\U0001F501 Manually Update Tranco List"):
         st.session_state["show_input"] = True
         show_input = True
 
