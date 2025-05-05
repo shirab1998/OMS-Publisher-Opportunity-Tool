@@ -129,37 +129,28 @@ st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    # Initialize manual mode state
-    if "manual_mode" not in st.session_state:
-        st.session_state["manual_mode"] = False
+    # Always ask for manual domains at the bottom (but read it early to detect mode)
+    manual_domains_input = ""
+    manual_domains_slot = st.empty()
 
-    # Toggle checkbox
-    manual_mode = st.checkbox("🛠️ Use manual domains input", value=st.session_state["manual_mode"])
-    st.session_state["manual_mode"] = manual_mode
+    # Temporarily store empty values
+    pub_domain, pub_name = "", ""
 
-    # Show or hide inputs based on manual mode
-    if not manual_mode:
+    # Check session if previously stored
+    manual_domains_input = st.session_state.get("manual_domains_input", "")
+    is_manual = bool(manual_domains_input.strip())
+
+    if not is_manual:
         pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
         pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
     else:
-        pub_domain = ""
-        pub_name = ""
-        st.info("Manual mode active: Only Publisher ID and ads.txt line are required.")
+        st.info("Manual mode detected. Only Publisher ID and example ads.txt line are required.")
 
-    # Always shown
     pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
     sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
 
-    # Manual input box at the bottom, only shown if manual mode
-    if manual_mode:
-        manual_domains_input = st.text_area(
-            "📄 Paste domains manually (comma or newline separated)",
-            value=st.session_state.get("manual_domains_input", ""),
-            height=100
-        )
-        st.session_state["manual_domains_input"] = manual_domains_input
-    else:
-        st.session_state["manual_domains_input"] = ""
+    # Display manual input LAST
+    manual_domains_input = manual_domains_slot.text_area("Paste domains manually (comma or newline separated)", height=100)
 
 else:
     pub_domain = st.session_state.get("pub_domain", "")
@@ -167,7 +158,6 @@ else:
     pub_id = st.session_state.get("pub_id", "")
     sample_direct_line = st.session_state.get("sample_direct_line", "")
     manual_domains_input = st.session_state.get("manual_domains_input", "")
-
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
