@@ -251,9 +251,7 @@ if not st.session_state.opportunities_table.empty:
 def sanitize_header(text):
     text = unicodedata.normalize("NFKD", text)
     text = re.sub(r'[^ -~]', '', text)
-    text = text.strip().replace("
-", "").replace("
-", "")
+    text = text.strip().replace("", "").replace("", "")
     return text
 
 st.markdown("### 📧 Email This List")
