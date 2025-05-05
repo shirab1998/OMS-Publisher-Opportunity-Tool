@@ -126,15 +126,23 @@ tranco_rankings = load_tranco_top_domains()
 st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
 
 # --- INPUT SECTION ---
-st.markdown("### 📝 Enter Publisher Details")
-
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
-    pub_domain = st.text_input("Publisher Domain (optional if using manual domains)", placeholder="example.com")
-    pub_name = st.text_input("Publisher Name (optional if using manual domains)", placeholder="connatix.com")
-    pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
-    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
-    st.markdown("Or paste domains manually (if sellers.json not found):")
-    manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100)
+    st.markdown("### 📝 Enter Publisher Details")
+
+    manual_domains_input = st.text_area("Or paste domains manually (comma or newline separated)", height=100)
+
+    # If manual domains are entered, only ask for pub_id and example line
+    if manual_domains_input.strip():
+        pub_name = ""
+        pub_domain = ""
+        st.info("Manual mode detected. Only Publisher ID and example ads.txt line are required.")
+        pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+        sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+    else:
+        pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
+        pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
+        pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+        sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
 else:
     pub_domain = st.session_state.get("pub_domain", "")
     pub_name = st.session_state.get("pub_name", "")
@@ -142,10 +150,12 @@ else:
     sample_direct_line = st.session_state.get("sample_direct_line", "")
     manual_domains_input = st.session_state.get("manual_domains_input", "")
 
+# Session defaults
 st.session_state.setdefault("result_text", "")
 st.session_state.setdefault("results_ready", False)
 st.session_state.setdefault("skipped_log", [])
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
+
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
