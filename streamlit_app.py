@@ -163,32 +163,40 @@ if st.button("🔍 Find Monetization Opportunities"):
     st.session_state["pub_name"] = pub_name
     st.session_state["pub_id"] = pub_id
     st.session_state["sample_direct_line"] = sample_direct_line
+    st.session_state["manual_domains_input"] = manual_domains_input
 
-    if not all([pub_domain, pub_name, pub_id, sample_direct_line]):
-        st.error("Please fill out all fields!")
+    if not pub_id or not sample_direct_line:
+        st.error("Publisher ID and Example Direct Line are required.")
     else:
         with st.spinner("🔎 Checking domains..."):
             try:
                 st.session_state.skipped_log = []
-                sellers_url = f"https://{pub_domain}/sellers.json"
-                try:
-                    sellers_response = requests.get(sellers_url, timeout=10)
-                    sellers_data = sellers_response.json()
-                except Exception:
-                    st.error(f"Invalid sellers.json at {sellers_url}")
-                    sellers_data = {}
+                results = []
+                domains = set()
 
-                if "sellers" not in sellers_data:
-                    st.warning(f"No 'sellers' field in sellers.json for {pub_domain}")
+                # Check if we have manual domains
+                if manual_domains_input.strip():
+                    manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
+                    domains = {d.strip().lower() for d in manual_lines if d.strip()}
                 else:
-                    domains = {
-                        s.get("domain").lower() for s in sellers_data.get("sellers", [])
-                        if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
-                    }
-                    if not domains and manual_domains_input:
-                        manual_lines = re.split(r'[,]+', manual_domains_input)
-                        domains = {d.strip().lower() for d in manual_lines if d.strip()}
-                    results = []
+                    # Try sellers.json
+                    sellers_url = f"https://{pub_domain}/sellers.json"
+                    try:
+                        sellers_response = requests.get(sellers_url, timeout=10)
+                        sellers_data = sellers_response.json()
+                        if "sellers" in sellers_data:
+                            domains = {
+                                s.get("domain").lower() for s in sellers_data["sellers"]
+                                if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
+                            }
+                        else:
+                            st.warning("No sellers field in sellers.json. Provide manual domains if needed.")
+                    except Exception:
+                        st.error(f"Invalid sellers.json at {sellers_url}")
+
+                if not domains:
+                    st.error("No valid domains found to check.")
+                else:
                     progress = st.progress(0)
                     progress_text = st.empty()
                     for idx, domain in enumerate(domains, start=1):
@@ -197,13 +205,14 @@ if st.button("🔍 Find Monetization Opportunities"):
                             ads_response = requests.get(ads_url, timeout=10)
                             ads_lines = ads_response.text.splitlines()
 
-                            has_direct = any(line.strip().lower().startswith(pub_name.lower()) and "direct" in line.lower() for line in ads_lines)
+                            has_direct = any(sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower()
+                                             for line in ads_lines)
                             if not has_direct:
-                                st.session_state.skipped_log.append((domain, f"No {pub_name} direct line"))
+                                st.session_state.skipped_log.append((domain, f"No direct line for publisher"))
                                 continue
 
                             if any(
-                                "onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower())
+                                "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
                                 for line in ads_lines
                             ):
                                 st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
@@ -228,37 +237,41 @@ if st.button("🔍 Find Monetization Opportunities"):
 
                         except Exception as e:
                             st.session_state.skipped_log.append((domain, f"Request error: {e}"))
+
                         progress.progress(idx / len(domains))
                         progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
                     df_results = pd.DataFrame(results)
                     df_results.sort_values("Tranco Rank", inplace=True)
                     st.session_state.opportunities_table = df_results
-                    key = f"{pub_name}_{pub_id}"
+                    key = f"{pub_name or 'manual'}_{pub_id}"
                     st.session_state.setdefault("history", {})
                     st.session_state["history"][key] = {
-                        "name": pub_name,
+                        "name": pub_name or "Manual Domains",
                         "id": pub_id,
                         "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "table": df_results.copy()
                     }
                     st.success("✅ Analysis complete")
                     st.balloons()
+
             except Exception as e:
                 st.error(f"Error while processing: {e}")
 
 # --- RESULTS DISPLAY ---
 if not st.session_state.opportunities_table.empty:
-    st.subheader(f"📈 Opportunities for {pub_name} ({pub_id})")
+    st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
     oms_no = total - oms_yes
     skipped = len(st.session_state.skipped_log)
+    
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
     styled_df = st.session_state.opportunities_table.copy()
     styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
     styled_df_display = styled_df.drop(columns=["Highlight"])
+    
     st.dataframe(
         styled_df_display.style.apply(
             lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
@@ -268,38 +281,50 @@ if not st.session_state.opportunities_table.empty:
     )
 
     csv_data = st.session_state.opportunities_table.to_csv(index=False)
-    st.download_button("⬇️ Download Opportunities CSV", data=csv_data, file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
-
+    st.download_button(
+        "⬇️ Download Opportunities CSV",
+        data=csv_data,
+        file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
 # --- EMAIL SECTION ---
-def sanitize_header(text):
-    text = unicodedata.normalize("NFKD", text)
-    text = re.sub(r'[^ -~]', '', text)
-    text = text.strip().replace("", "").replace("", "")
-    return text
+if not st.session_state.opportunities_table.empty:
+    def sanitize_header(text):
+        text = unicodedata.normalize("NFKD", text)
+        text = re.sub(r'[^ -~]', '', text)
+        return text.strip().replace("\r", "").replace("\n", "")
 
-st.markdown("### 📧 Email This List")
-st.markdown("<label>Email Address</label>", unsafe_allow_html=True)
-email_cols = st.columns([3, 5])
-email_local_part = email_cols[0].text_input("", placeholder="e.g. shirab", label_visibility="collapsed")
-email_cols[1].markdown("<div style='margin-top: 0.6em; font-size: 16px;'>@onlinemediasolutions.com</div>", unsafe_allow_html=True)
+    st.markdown("### 📧 Email This List")
+    st.markdown("<label>Email Address</label>", unsafe_allow_html=True)
+    email_cols = st.columns([3, 5])
+    email_local_part = email_cols[0].text_input(
+        "", placeholder="e.g. shirab", label_visibility="collapsed"
+    )
+    email_cols[1].markdown(
+        "<div style='margin-top: 0.6em; font-size: 16px;'>@onlinemediasolutions.com</div>",
+        unsafe_allow_html=True
+    )
 
-if st.button("Send Email"):
-    if not email_local_part.strip():
-        st.error("Please enter a valid username before sending the email.")
-    else:
-        try:
-            full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
-            from_email = st.secrets["EMAIL_ADDRESS"]
-            email_password = st.secrets["EMAIL_PASSWORD"]
+    if st.button("Send Email"):
+        if not email_local_part.strip():
+            st.error("Please enter a valid username before sending the email.")
+        else:
+            try:
+                full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
+                from_email = st.secrets["EMAIL_ADDRESS"]
+                email_password = st.secrets["EMAIL_PASSWORD"]
 
-            subject_name = sanitize_header(pub_name or "Unknown Publisher")
-            subject_id = sanitize_header(pub_id or "NoID")
-            msg = EmailMessage()
-            msg["Subject"] = f"{subject_name} ({subject_id}) opportunities"
-            msg["From"] = from_email.strip()
-            msg["To"] = full_email.strip()
-            html_table = st.session_state.opportunities_table.to_html(index=False, border=1, justify='center', classes='styled-table')
-            body = f"""
+                subject_name = sanitize_header(pub_name or "Manual Domains")
+                subject_id = sanitize_header(pub_id or "NoID")
+                msg = EmailMessage()
+                msg["Subject"] = f"{subject_name} ({subject_id}) opportunities"
+                msg["From"] = from_email.strip()
+                msg["To"] = full_email.strip()
+
+                html_table = st.session_state.opportunities_table.to_html(
+                    index=False, border=1, justify='center', classes='styled-table'
+                )
+                body = f"""
 <html>
   <head>
     <style>
@@ -324,23 +349,23 @@ if st.button("Send Email"):
   </head>
   <body>
     <p>Hi there!</p>
-    <p>Here is the list of opportunities for <strong>{pub_name}</strong> ({pub_id}):</p>
+    <p>Here is the list of opportunities for <strong>{subject_name}</strong> ({subject_id}):</p>
     {html_table}
     <p>Warm regards,<br/>Automation bot</p>
   </body>
 </html>
 """
-            msg.set_content("This email requires an HTML-capable email client.")
-            msg.add_alternative(body, subtype="html")
+                msg.set_content("This email requires an HTML-capable email client.")
+                msg.add_alternative(body, subtype="html")
 
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                smtp.login(from_email, email_password)
-                smtp.send_message(msg)
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                    smtp.login(from_email, email_password)
+                    smtp.send_message(msg)
 
-            st.success("Email sent successfully!")
-            st.info("✅ Want to analyze another publisher? Update the fields above or refresh the page.")
-        except Exception as e:
-            st.error(f"Failed to send email: {e}")
+                st.success("Email sent successfully!")
+                st.info("✅ Want to analyze another publisher? Update the fields above or refresh the page.")
+            except Exception as e:
+                st.error(f"Failed to send email: {e}")
 
 # --- START OVER BUTTON ---
 if st.button("🔁 Start Over"):
@@ -357,5 +382,11 @@ if st.session_state.skipped_log:
         st.subheader("⛔ Skipped Domains")
         skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
         st.dataframe(skipped_df, use_container_width=True)
+
         skipped_csv = skipped_df.to_csv(index=False)
-        st.download_button("⬇️ Download Skipped Domains CSV", data=skipped_csv, file_name="skipped_domains.csv", mime="text/csv")
+        st.download_button(
+            "⬇️ Download Skipped Domains CSV",
+            data=skipped_csv,
+            file_name="skipped_domains.csv",
+            mime="text/csv"
+        )
