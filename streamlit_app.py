@@ -211,6 +211,9 @@ if st.button("🔍 Find Monetization Opportunities"):
                 df_results.sort_values("Tranco Rank", inplace=True)
                 st.session_state["opportunities_table"] = df_results
                 st.session_state["skipped_log"] = skipped_log
+                st.success("✅ Analysis complete.")
+                st.balloons()
+
 
 # --- RESULTS DISPLAY ---
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
@@ -229,4 +232,137 @@ if not st.session_state.opportunities_table.empty:
         styled_df.style.apply(highlight, axis=1),
         use_container_width=True
     )
+# --- RESULTS DISPLAY ---
+st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
+if not st.session_state.opportunities_table.empty:
+    st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
+    total = len(st.session_state.opportunities_table)
+    oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
+    oms_no = total - oms_yes
+    skipped = len(st.session_state.skipped_log)
+    
+    st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
+
+    styled_df = st.session_state.opportunities_table.copy()
+    styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
+    styled_df_display = styled_df.drop(columns=["Highlight"])
+    
+    st.dataframe(
+        styled_df_display.style.apply(
+            lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
+            axis=0
+        ),
+        use_container_width=True
+    )
+
+    csv_data = st.session_state.opportunities_table.to_csv(index=False)
+    st.download_button(
+        "⬇️ Download Opportunities CSV",
+        data=csv_data,
+        file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
+# --- EMAIL SECTION ---
+if not st.session_state.opportunities_table.empty:
+    def sanitize_header(text):
+        text = unicodedata.normalize("NFKD", text)
+        text = re.sub(r'[^ -~]', '', text)
+        return text.strip().replace("\r", "").replace("\n", "")
+
+    st.markdown("### 📧 Email This List")
+    st.markdown("<label>Email Address</label>", unsafe_allow_html=True)
+    email_cols = st.columns([3, 5])
+    email_local_part = email_cols[0].text_input(
+        "", placeholder="e.g. shirab", label_visibility="collapsed"
+    )
+    email_cols[1].markdown(
+        "<div style='margin-top: 0.6em; font-size: 16px;'>@onlinemediasolutions.com</div>",
+        unsafe_allow_html=True
+    )
+
+    if st.button("Send Email"):
+        if not email_local_part.strip():
+            st.error("Please enter a valid username before sending the email.")
+        else:
+            try:
+                full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
+                from_email = st.secrets["EMAIL_ADDRESS"]
+                email_password = st.secrets["EMAIL_PASSWORD"]
+
+                subject_name = sanitize_header(pub_name or "Manual Domains")
+                subject_id = sanitize_header(pub_id or "NoID")
+                msg = EmailMessage()
+                msg["Subject"] = f"{subject_name} ({subject_id}) opportunities"
+                msg["From"] = from_email.strip()
+                msg["To"] = full_email.strip()
+
+                html_table = st.session_state.opportunities_table.to_html(
+                    index=False, border=1, justify='center', classes='styled-table'
+                )
+                body = f"""
+<html>
+  <head>
+    <style>
+      * {{ font-family: Arial, sans-serif; font-size: 14px; color: #333; }}
+      .styled-table {{
+        border-collapse: collapse;
+        margin: 10px 0;
+        font-size: 14px;
+        min-width: 400px;
+        border: 1px solid #ddd;
+      }}
+      .styled-table th, .styled-table td {{
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }}
+      .styled-table th {{
+        background-color: #f2f2f2;
+        font-weight: bold;
+      }}
+    </style>
+  </head>
+  <body>
+    <p>Hi there!</p>
+    <p>Here is the list of opportunities for <strong>{subject_name}</strong> ({subject_id}):</p>
+    {html_table}
+    <p>Warm regards,<br/>Automation bot</p>
+  </body>
+</html>
+"""
+                msg.set_content("This email requires an HTML-capable email client.")
+                msg.add_alternative(body, subtype="html")
+
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                    smtp.login(from_email, email_password)
+                    smtp.send_message(msg)
+
+                st.success("Email sent successfully!")
+                st.info("✅ Want to analyze another publisher? Update the fields above or refresh the page.")
+            except Exception as e:
+                st.error(f"Failed to send email: {e}")
+
+# --- START OVER BUTTON ---
+if st.button("🔁 Start Over"):
+    history_backup = st.session_state.get("history", {}).copy()
+    for key in list(st.session_state.keys()):
+        if key != "history":
+            del st.session_state[key]
+    st.session_state["history"] = history_backup
+    st.rerun()
+
+# --- SKIPPED DOMAINS REPORT ---
+if st.session_state.skipped_log:
+    with st.expander("⛔ Skipped Domains", expanded=False):
+        st.subheader("⛔ Skipped Domains")
+        skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
+        st.dataframe(skipped_df, use_container_width=True)
+
+        skipped_csv = skipped_df.to_csv(index=False)
+        st.download_button(
+            "⬇️ Download Skipped Domains CSV",
+            data=skipped_csv,
+            file_name="skipped_domains.csv",
+            mime="text/csv"
+        )
