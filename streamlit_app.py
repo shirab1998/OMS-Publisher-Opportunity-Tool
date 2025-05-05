@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 import pandas as pd
@@ -103,9 +102,13 @@ with st.sidebar:
 def load_tranco_top_domains():
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         return {}
-    df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
-    df = df[df["Rank"] <= TRANCO_THRESHOLD]
-    return dict(zip(df["Domain"].str.lower(), df["Rank"]))
+    try:
+        df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
+        df = df[df["Rank"] <= TRANCO_THRESHOLD]
+        return dict(zip(df["Domain"].str.lower(), df["Rank"]))
+    except Exception as e:
+        st.error(f"Error reading Tranco CSV: {e}")
+        return {}
 
 tranco_rankings = load_tranco_top_domains()
 
