@@ -48,13 +48,13 @@ with st.sidebar:
 
     if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
         updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
-        style = "font-size: 100%;"
+        style = "font-size: 90%;"
         if is_recent(meta.get("timestamp", "")):
             st.markdown(f"<div style='{style}'><span style='color: green;'>Last updated: {updated_time} \U0001F7E2 Up to date</span></div>", unsafe_allow_html=True)
         else:
             st.markdown(f"<div style='{style}'><span style='color: orange;'>Last updated: {updated_time} \U0001F7E1 Might be outdated</span></div>", unsafe_allow_html=True)
     else:
-        st.markdown("<div style='font-size: 100%; color: red;'>\u26A0\ufe0f Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 90%; color: red;'>\u26A0\ufe0f Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
         show_input = True
 
     if st.button("\U0001F501 Manually Update Tranco List"):
