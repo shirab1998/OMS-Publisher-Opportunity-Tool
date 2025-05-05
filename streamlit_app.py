@@ -99,6 +99,9 @@ with st.sidebar:
 # --- LOAD RANKINGS ---
 tranco_rankings = load_tranco_top_domains()
 
+# Check if the Tranco file exists and is a CSV
+tranco_valid = tranco_exists and TRANCO_TOP_DOMAINS_FILE.endswith(".csv") and os.path.isfile(TRANCO_TOP_DOMAINS_FILE)
+
 # --- CONTINUE WITH FULL FUNCTIONALITY ---
 st.markdown("### 📝 Enter Publisher Details")
 pub_domain = st.text_input("Publisher Domain", placeholder="example.com", key="pub_domain_input")
@@ -109,30 +112,35 @@ st.markdown("Or paste domains manually (if sellers.json not found):")
 manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100, key="manual_domains_input")
 
 # --- SAFE DOMAIN CHECK LOOP ---
-if st.button("🔍 Find Monetization Opportunities", key="find_opportunities_btn"):
-    st.session_state.setdefault("skipped_log", [])
-    st.session_state.skipped_log.clear()
-    domains = ["onlymomsknow.com"]  # example domain
-    results = []
+if tranco_valid and (st.session_state.get("opportunities_table") is None or st.session_state.opportunities_table.empty):
+    if st.button("🔍 Find Monetization Opportunities", key="find_opportunities_btn"):
+        st.session_state.setdefault("skipped_log", [])
+        st.session_state.skipped_log.clear()
+        domains = ["onlymomsknow.com"]  # example domain
+        results = []
 
-    for domain in domains:
-        try:
-            if domain.lower() not in tranco_rankings:
-                st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
-                continue
+        for domain in domains:
+            try:
+                if domain.lower() not in tranco_rankings:
+                    st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                    continue
 
-            rank = tranco_rankings.get(domain.lower())
-            results.append({
-                "Domain": domain,
-                "Tranco Rank": rank,
-                "OMS Buying": "No"
-            })
-        except Exception as e:
-            st.error(f"Error while processing {domain}: {e}")
+                rank = tranco_rankings.get(domain.lower())
+                results.append({
+                    "Domain": domain,
+                    "Tranco Rank": rank,
+                    "OMS Buying": "No"
+                })
+            except Exception as e:
+                st.error(f"Error while processing {domain}: {e}")
 
-    if results:
+        if results:
+            df = pd.DataFrame(results)
+            st.session_state.opportunities_table = df
+            st.dataframe(df)
         df = pd.DataFrame(results)
         st.dataframe(df)
+
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
