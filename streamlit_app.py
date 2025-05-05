@@ -129,29 +129,28 @@ st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    manual_domains_input = st.text_area(
-        "Or paste domains manually (comma or newline separated)",
-        value=st.session_state.get("manual_domains_input", ""),
-        height=100
-    )
-    st.session_state["manual_domains_input"] = manual_domains_input.strip()
+    manual_domains_input = st.text_area("Or paste domains manually (comma or newline separated)", height=100)
 
-    if manual_domains_input.strip():
-        st.info("Manual mode detected. Only Publisher ID and example ads.txt line are required.")
-        pub_domain = ""
-        pub_name = ""
-    else:
+    is_manual = bool(manual_domains_input.strip())
+
+    if not is_manual:
         pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
         pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
+    else:
+        pub_domain = ""
+        pub_name = ""
+        st.info("Manual mode detected. Only Publisher ID and example ads.txt line are required.")
 
     pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
     sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+
 else:
     pub_domain = st.session_state.get("pub_domain", "")
     pub_name = st.session_state.get("pub_name", "")
     pub_id = st.session_state.get("pub_id", "")
     sample_direct_line = st.session_state.get("sample_direct_line", "")
     manual_domains_input = st.session_state.get("manual_domains_input", "")
+
 
 
 
