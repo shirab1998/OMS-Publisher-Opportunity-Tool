@@ -48,23 +48,19 @@ with st.sidebar:
 
     if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
         updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
+        style = "font-size: 70%;"
         if is_recent(meta.get("timestamp", "")):
-            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: green;'>Last updated: {updated_time} ⬤ Up to date</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='{style}'><span style='color: green;'>Last updated: {updated_time} \U0001F7E2 Up to date</span></div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: orange;'>Last updated: {updated_time} ⬤ Might be outdated</span></div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<div style='font-size: 85%; color: red; margin-bottom: 0.75em;'>⚠️ Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
             st.markdown(f"<div style='{style}'><span style='color: orange;'>Last updated: {updated_time} \U0001F7E1 Might be outdated</span></div>", unsafe_allow_html=True)
     else:
         st.markdown("<div style='font-size: 70%; color: red;'>\u26A0\ufe0f Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
         show_input = True
 
-    st.markdown("<div style='margin-top: 0.5em; margin-bottom: 1em;'>", unsafe_allow_html=True)
-    if st.button("🔁 Manually Update Tranco List"):
+    if st.button("\U0001F501 Manually Update Tranco List"):
         st.session_state["show_input"] = True
         show_input = True
 
-        st.markdown("</div>", unsafe_allow_html=True)
     if show_input:
         st.markdown("[Visit Tranco list site](https://tranco-list.eu/) to get a link")
         st.text_input("Paste Tranco List URL", key="tranco_url")
@@ -91,7 +87,44 @@ with st.sidebar:
                     st.error(f"Error downloading Tranco list: {e}")
 
     st.markdown("---")
+    st.subheader("\U0001F553 Recent Publishers")
+    if "history" in st.session_state:
+        recent_keys = list(reversed(list(st.session_state["history"].keys())))[:10]
+        for key in recent_keys:
+            entry = st.session_state["history"][key]
+            label = f"{entry['name']} ({entry['id']})"
+            small_date = f"<div style='font-size: 12px; color: gray;'>Generated: {entry['date']}</div>"
+            if st.button(label, key=key):
+                st.subheader(f"\U0001F4DC Past Results: {entry['name']} ({entry['id']})")
+                st.markdown(small_date, unsafe_allow_html=True)
+                styled = entry['table'].copy()
+                styled["Highlight"] = styled["Tranco Rank"] <= 50000
+                styled_display = styled.drop(columns=["Highlight"])
+                st.dataframe(
+                    styled_display.style.apply(
+                        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
+                        axis=0
+                    ),
+                    use_container_width=True
+                )
+                st.stop()
 
+# --- TRANCO LOADING ---
+@st.cache_data
+def load_tranco_top_domains():
+    if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
+        return {}
+    try:
+        df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
+        df = df[df["Rank"] <= TRANCO_THRESHOLD]
+        return dict(zip(df["Domain"].str.lower(), df["Rank"]))
+    except Exception as e:
+        st.error(f"Error reading Tranco CSV: {e}")
+        return {}
+
+tranco_rankings = load_tranco_top_domains()
+
+st.info("\u2705 Tranco list loaded and ready. You can proceed with domain analysis.")
 
 # --- INPUT SECTION ---
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
