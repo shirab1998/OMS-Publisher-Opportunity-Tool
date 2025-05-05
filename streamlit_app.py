@@ -64,7 +64,7 @@ with st.sidebar:
             st.success("✅ The Tranco file is up to date.")
         else:
             st.warning("⚠️ The Tranco file might be out of date.")
-            if st.button("Update Tranco File"):
+            if st.button("Update Tranco File", key="update_tranco_file_btn"):
                 st.session_state["show_tranco_input"] = True
                 st.rerun()
     elif not tranco_exists:
@@ -75,7 +75,7 @@ with st.sidebar:
         st.markdown("[Tranco link](https://tranco-list.eu)")
         st.markdown("**Add latest Tranco list URL:**")
         custom_url = st.text_input("", placeholder="https://tranco-list.eu/list/XXXXX/1000000", key="tranco_url")
-        if st.button("Save Tranco List"):
+        if st.button("Save Tranco List", key="save_tranco_list_btn"):
             match = re.search(r"/list/([A-Z0-9]{5})/", custom_url)
             if not match:
                 st.error("❌ Invalid URL. Please paste a correct Tranco list URL.")
@@ -109,7 +109,7 @@ st.markdown("Or paste domains manually (if sellers.json not found):")
 manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100, key="manual_domains_input")
 
 # --- SAFE DOMAIN CHECK LOOP ---
-if st.button("🔍 Find Monetization Opportunities"):
+if st.button("🔍 Find Monetization Opportunities", key="find_opportunities_btn"):
     st.session_state.setdefault("skipped_log", [])
     st.session_state.skipped_log.clear()
     domains = ["onlymomsknow.com"]  # example domain
