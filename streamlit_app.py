@@ -141,6 +141,8 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                     for idx, domain in enumerate(domains, start=1):
                         ads_url = f"https://{domain}/ads.txt"
                         try:
+                            ads_url = f"https://{domain}/ads.txt"
+                        try:
                             ads_response = requests.get(ads_url, timeout=10)
                             ads_lines = ads_response.text.splitlines()
 
@@ -153,7 +155,19 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                                 st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
                                 continue
 
-                            is_oms_buyer = any("onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower() for line in ads_lines)
+                            # Skip if OMS is already buying DIRECT or RESELLER from this pub_id
+                            if any(
+                                "onlinemediasolutions.com" in line.lower() and pub_id in line and ("direct" in line.lower() or "reseller" in line.lower())
+                                for line in ads_lines
+                            ):
+                                st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
+                                continue
+
+                            # Flag if OMS is buying but with a different pub_id
+                            is_oms_buyer = any(
+                                "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
+                                for line in ads_lines
+                            )
 
                             rank = tranco_rankings[domain.lower()]
                             results.append({
@@ -162,6 +176,7 @@ if st.button("\U0001F50D Find Monetization Opportunities"):
                                 "OMS Buying": "Yes" if is_oms_buyer else "No"
                             })
                             time.sleep(0.1)
+
                         except Exception as e:
                             st.session_state.skipped_log.append((domain, f"Request error: {e}"))
                         progress.progress(idx / len(domains))
