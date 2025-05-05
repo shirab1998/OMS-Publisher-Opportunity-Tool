@@ -53,46 +53,48 @@ with st.sidebar:
     st.header("\U0001F310 Tranco List")
 
     tranco_meta = get_tranco_meta()
-    show_tranco_input = False
+    tranco_exists = os.path.exists(TRANCO_TOP_DOMAINS_FILE)
+    allow_update = False
+    update_triggered = st.session_state.get("show_tranco_input", False)
 
-    if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        if tranco_meta:
-            last_updated = datetime.fromisoformat(tranco_meta["timestamp"])
-            st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
-            if not is_recent(tranco_meta["timestamp"]):
-                st.warning("⚠️ Tranco list is over 2 weeks old.")
-                show_tranco_input = True
+    if tranco_exists and tranco_meta:
+        last_updated = datetime.fromisoformat(tranco_meta["timestamp"])
+        st.markdown(f"**Last Tranco update:** {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+        if is_recent(tranco_meta["timestamp"]):
+            st.success("✅ The Tranco file is up to date.")
         else:
-            st.warning("Tranco metadata missing. Update required.")
-            show_tranco_input = True
-    else:
-        st.warning("❌ Tranco list not available.")
-        show_tranco_input = True
+            st.warning("⚠️ The Tranco file might be out of date.")
+            if st.button("Update Tranco File"):
+                st.session_state["show_tranco_input"] = True
+                st.rerun()
+    elif not tranco_exists:
+        st.markdown("**❌ No Tranco list available**")
+        update_triggered = True
 
-    if show_tranco_input:
-        with st.expander("🔄 Update Tranco List", expanded=True):
-            st.markdown("Enter Tranco URL (e.g. https://tranco-list.eu/list/93L52/1000000)")
-            custom_url = st.text_input("Tranco Source URL")
-
-            if st.button("Fetch and Save Tranco List"):
-                match = re.search(r"/list/([A-Z0-9]{5})/", custom_url)
-                if not match:
-                    st.error("❌ Invalid URL. Please paste a correct Tranco list URL.")
-                else:
-                    tranco_id = match.group(1)
-                    download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
-                    try:
-                        response = requests.get(download_url)
-                        if response.status_code == 200:
-                            with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                                f.write(response.content)
-                            save_tranco_meta(tranco_id)
-                            st.success(f"✅ Tranco list updated successfully (ID: {tranco_id})")
-                            st.experimental_rerun()
-                        else:
-                            st.error(f"Download failed: HTTP {response.status_code}")
-                    except Exception as e:
-                        st.error(f"Error fetching Tranco list: {e}")
+    if update_triggered:
+        st.markdown("[Tranco link](https://tranco-list.eu)")
+        st.markdown("**Add latest Tranco list URL:**")
+        custom_url = st.text_input("", placeholder="https://tranco-list.eu/list/XXXXX/1000000", key="tranco_url")
+        if st.button("Save Tranco List"):
+            match = re.search(r"/list/([A-Z0-9]{5})/", custom_url)
+            if not match:
+                st.error("❌ Invalid URL. Please paste a correct Tranco list URL.")
+            else:
+                tranco_id = match.group(1)
+                download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
+                try:
+                    response = requests.get(download_url)
+                    if response.status_code == 200:
+                        with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                            f.write(response.content)
+                        save_tranco_meta(tranco_id)
+                        st.success(f"✅ Tranco list updated successfully (ID: {tranco_id})")
+                        st.session_state["show_tranco_input"] = False
+                        st.rerun()
+                    else:
+                        st.error(f"Download failed: HTTP {response.status_code}")
+                except Exception as e:
+                    st.error(f"Error fetching Tranco list: {e}")
 
 # --- LOAD RANKINGS ---
 tranco_rankings = load_tranco_top_domains()
