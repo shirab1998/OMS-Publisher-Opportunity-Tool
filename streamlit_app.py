@@ -113,26 +113,6 @@ st.session_state.setdefault("results_ready", False)
 st.session_state.setdefault("skipped_log", [])
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
-# --- INPUT SECTION ---
-if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
-    st.markdown("### 📝 Enter Publisher Details")
-    pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
-    pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
-    pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
-    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
-    st.markdown("Or paste domains manually (if sellers.json not found):")
-    manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100)
-else:
-    pub_domain = st.session_state.get("pub_domain", "")
-    pub_name = st.session_state.get("pub_name", "")
-    pub_id = st.session_state.get("pub_id", "")
-    sample_direct_line = st.session_state.get("sample_direct_line", "")
-
-st.session_state.setdefault("result_text", "")
-st.session_state.setdefault("results_ready", False)
-st.session_state.setdefault("skipped_log", [])
-st.session_state.setdefault("opportunities_table", pd.DataFrame())
-
 @st.cache_data
 def load_tranco_top_domains():
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
