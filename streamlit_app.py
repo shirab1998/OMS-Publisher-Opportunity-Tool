@@ -175,12 +175,16 @@ if st.button("🔍 Find Monetization Opportunities"):
                         st.session_state.skipped_log.append((domain, f"Request error: {e}"))
                     progress.progress(idx / len(domains))
                     progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
+                if results:
+                     df_results = pd.DataFrame(results)
+                     if "Tranco Rank" in df_results.columns:
+                        df_results.sort_values("Tranco Rank", inplace=True)
+                    st.session_state.opportunities_table = df_results
+                    st.success("✅ Analysis complete")
+                    st.balloons()
+                else:
+                    st.warning("No valid monetization opportunities found.")
 
-                df_results = pd.DataFrame(results)
-                df_results.sort_values("Tranco Rank", inplace=True)
-                st.session_state.opportunities_table = df_results
-                st.success("✅ Analysis complete")
-                st.balloons()
 
             except Exception as e:
                 st.error(f"Error while processing: {e}")
