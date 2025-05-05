@@ -101,12 +101,12 @@ tranco_rankings = load_tranco_top_domains()
 
 # --- CONTINUE WITH FULL FUNCTIONALITY ---
 st.markdown("### 📝 Enter Publisher Details")
-pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
-pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
-pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
-sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+pub_domain = st.text_input("Publisher Domain", placeholder="example.com", key="pub_domain_input")
+pub_name = st.text_input("Publisher Name", placeholder="connatix.com", key="pub_name_input")
+pub_id = st.text_input("Publisher ID", placeholder="1536788745730056", key="pub_id_input")
+sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT", key="sample_direct_line_input")
 st.markdown("Or paste domains manually (if sellers.json not found):")
-manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100)
+manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100, key="manual_domains_input")
 
 st.session_state.setdefault("result_text", "")
 st.session_state.setdefault("results_ready", False)
