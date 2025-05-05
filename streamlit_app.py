@@ -219,6 +219,12 @@ if st.button("🔍 Find Monetization Opportunities"):
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
 if not st.session_state.opportunities_table.empty:
+    st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
+    total = len(st.session_state.opportunities_table)
+    oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
+    oms_no = total - oms_yes
+    skipped = len(st.session_state.get("skipped_log", []))
+
     styled_df = st.session_state.opportunities_table.copy()
 
     def highlight(row):
@@ -232,15 +238,6 @@ if not st.session_state.opportunities_table.empty:
         styled_df.style.apply(highlight, axis=1),
         use_container_width=True
     )
-# --- RESULTS DISPLAY ---
-st.session_state.setdefault("opportunities_table", pd.DataFrame())
-
-if not st.session_state.opportunities_table.empty:
-    st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
-    total = len(st.session_state.opportunities_table)
-    oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
-    oms_no = total - oms_yes
-    skipped = len(st.session_state.skipped_log)
     
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
