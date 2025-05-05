@@ -108,20 +108,31 @@ sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="c
 st.markdown("Or paste domains manually (if sellers.json not found):")
 manual_domains_input = st.text_area("Manual Domains (comma or newline separated)", height=100, key="manual_domains_input")
 
-st.session_state.setdefault("result_text", "")
-st.session_state.setdefault("results_ready", False)
-st.session_state.setdefault("skipped_log", [])
-st.session_state.setdefault("opportunities_table", pd.DataFrame())
+# --- SAFE DOMAIN CHECK LOOP ---
+if st.button("🔍 Find Monetization Opportunities"):
+    st.session_state.setdefault("skipped_log", [])
+    st.session_state.skipped_log.clear()
+    domains = ["onlymomsknow.com"]  # example domain
+    results = []
 
-@st.cache_data
-def load_tranco_top_domains():
-    if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        return {}
-    df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
-    df = df[df["Rank"] <= TRANCO_THRESHOLD]
-    return dict(zip(df["Domain"].str.lower(), df["Rank"]))
+    for domain in domains:
+        try:
+            if domain.lower() not in tranco_rankings:
+                st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                continue
 
-tranco_rankings = load_tranco_top_domains()
+            rank = tranco_rankings.get(domain.lower())
+            results.append({
+                "Domain": domain,
+                "Tranco Rank": rank,
+                "OMS Buying": "No"
+            })
+        except Exception as e:
+            st.error(f"Error while processing {domain}: {e}")
+
+    if results:
+        df = pd.DataFrame(results)
+        st.dataframe(df)
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
