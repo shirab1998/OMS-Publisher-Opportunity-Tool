@@ -41,7 +41,6 @@ def load_tranco_top_domains():
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         return {}
     df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
-    st.write("🔍 Sample of Tranco CSV:", df.head(5))  # Debug
     df = df[df["Rank"] <= TRANCO_THRESHOLD]
     return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
@@ -55,7 +54,6 @@ with st.sidebar:
 
     tranco_meta = get_tranco_meta()
     tranco_exists = os.path.exists(TRANCO_TOP_DOMAINS_FILE)
-    allow_update = False
     update_triggered = st.session_state.get("show_tranco_input", False)
 
     if tranco_exists and tranco_meta:
@@ -63,11 +61,9 @@ with st.sidebar:
         st.markdown(f"**Last Tranco update:** {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
         if is_recent(tranco_meta["timestamp"]):
             st.success("✅ The Tranco file is up to date.")
-        else:
-            st.warning("⚠️ The Tranco file might be out of date.")
-            if st.button("Update Tranco File", key="update_tranco_file_btn"):
-                st.session_state["show_tranco_input"] = True
-                st.rerun()
+        if st.button("Update Tranco File", key="update_tranco_file_btn"):
+            st.session_state["show_tranco_input"] = True
+            st.rerun()
     elif not tranco_exists:
         st.markdown("**❌ No Tranco list available**")
         update_triggered = True
