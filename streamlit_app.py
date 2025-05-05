@@ -15,19 +15,44 @@ TRANCO_THRESHOLD = 210000
 
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
-st.title("💡 Publisher Monetization Opportunity Finder")
+st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("🌐 Tranco List")
+    st.header("\U0001F310 Tranco List")
     if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         last_updated = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE))
         st.success(f"Last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
     else:
         st.warning("Tranco list not available")
 
+    if st.button("\U0001F501 Update Tranco List"):
+        def fetch_latest_tranco(output_file):
+            try:
+                homepage = requests.get("https://tranco-list.eu")
+                match = re.search(r'/list/([a-zA-Z0-9]{5,})/1000000', homepage.text)
+                if not match:
+                    st.error("Could not extract latest Tranco list ID from homepage.")
+                    return False
+                list_id = match.group(1)
+                download_url = f"https://tranco-list.eu/download/{list_id}/full"
+                response = requests.get(download_url)
+                if response.status_code == 200:
+                    with open(output_file, "wb") as f:
+                        f.write(response.content)
+                    st.success(f"\u2705 Downloaded Tranco list (ID: {list_id})")
+                    return True
+                else:
+                    st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
+                    return False
+            except Exception as e:
+                st.error(f"Error downloading Tranco list: {e}")
+                return False
+
+        fetch_latest_tranco(TRANCO_TOP_DOMAINS_FILE)
+
     st.markdown("---")
-    st.subheader("🕘 Recent Publishers")
+    st.subheader("\U0001F553 Recent Publishers")
     if "history" in st.session_state:
         recent_keys = list(reversed(list(st.session_state["history"].keys())))[:10]
         for key in recent_keys:
@@ -35,7 +60,7 @@ with st.sidebar:
             label = f"{entry['name']} ({entry['id']})"
             small_date = f"<div style='font-size: 12px; color: gray;'>Generated: {entry['date']}</div>"
             if st.button(label, key=key):
-                st.subheader(f"📜 Past Results: {entry['name']} ({entry['id']})")
+                st.subheader(f"\U0001F4DC Past Results: {entry['name']} ({entry['id']})")
                 st.markdown(small_date, unsafe_allow_html=True)
                 styled = entry['table'].copy()
                 styled["Highlight"] = styled["Tranco Rank"] <= 50000
@@ -49,29 +74,20 @@ with st.sidebar:
                 )
                 st.stop()
 
-# --- FUNCTION TO FETCH TRANCO LIST ---
-def fetch_latest_tranco(output_file):
-    try:
-        homepage = requests.get("https://tranco-list.eu")
-        match = re.search(r'href=\"/list/([A-Z0-9]{5})\"', homepage.text)
-        if not match:
-            st.error("Could not extract latest Tranco list ID from homepage.")
-            return False
+# --- TRANCO LOADING ---
+@st.cache_data
+def load_tranco_top_domains():
+    if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
+        return {}
+    df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE)
+    if "Rank" not in df.columns or "Domain" not in df.columns:
+        st.error("Tranco CSV missing required columns: 'Rank' and 'Domain'")
+        return {}
+    df = df[df["Rank"] <= TRANCO_THRESHOLD]
+    return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
-        list_id = match.group(1)
-        download_url = f"https://tranco-list.eu/download/{list_id}/full"
-        response = requests.get(download_url)
-        if response.status_code == 200:
-            with open(output_file, "wb") as f:
-                f.write(response.content)
-            st.success(f"✅ Downloaded Tranco list (ID: {list_id})")
-            return True
-        else:
-            st.error(f"Failed to download Tranco CSV: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        st.error(f"Error downloading Tranco list: {e}")
-        return False
+tranco_rankings = load_tranco_top_domains()
+
 
 # --- INPUT SECTION ---
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
@@ -305,3 +321,4 @@ if st.session_state.skipped_log:
         st.dataframe(skipped_df, use_container_width=True)
         skipped_csv = skipped_df.to_csv(index=False)
         st.download_button("⬇️ Download Skipped Domains CSV", data=skipped_csv, file_name="skipped_domains.csv", mime="text/csv")
+st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
