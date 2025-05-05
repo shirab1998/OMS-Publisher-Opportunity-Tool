@@ -44,35 +44,41 @@ st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 with st.sidebar:
     st.header("\U0001F310 Tranco List")
     meta = get_tranco_meta()
+    show_input = True
+
     if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
         updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
+        style = "font-size: 70%;"
         if is_recent(meta.get("timestamp", "")):
-            st.success(f"Last updated: {updated_time} \U0001F7E2 Up to date")
+            st.markdown(f"<div style='{style}'><span style='color: green;'>Last updated: {updated_time} \U0001F7E2 Up to date</span></div>", unsafe_allow_html=True)
+            show_input = False
         else:
-            st.warning(f"Last updated: {updated_time} \U0001F7E1 Might be outdated")
+            st.markdown(f"<div style='{style}'><span style='color: orange;'>Last updated: {updated_time} \U0001F7E1 Might be outdated</span></div>", unsafe_allow_html=True)
     else:
-        st.error("\u26A0\ufe0f Tranco list not found. Please paste a Tranco list URL below.")
+        st.markdown("<div style='font-size: 70%; color: red;'>\u26A0\ufe0f Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
 
-    st.text_input("Paste Tranco List URL (e.g. https://tranco-list.eu/list/93L52/1000000)", key="tranco_url")
-    if st.button("\U0001F4E5 Download Tranco List"):
-        url = st.session_state.get("tranco_url", "")
-        match = re.search(r"/list/([a-zA-Z0-9]{5,})/", url)
-        if not match:
-            st.error("Invalid Tranco URL format.")
-        else:
-            tranco_id = match.group(1)
-            download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
-            try:
-                response = requests.get(download_url)
-                if response.status_code == 200:
-                    with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                        f.write(response.content)
-                    save_tranco_meta(tranco_id)
-                    st.success(f"\u2705 Downloaded Tranco list (ID: {tranco_id})")
-                else:
-                    st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
-            except Exception as e:
-                st.error(f"Error downloading Tranco list: {e}")
+    if show_input:
+        st.markdown("[Visit Tranco list site](https://tranco-list.eu/) to get a link")
+        st.text_input("Paste Tranco List URL", key="tranco_url")
+        if st.button("\U0001F4E5 Download Tranco List"):
+            url = st.session_state.get("tranco_url", "")
+            match = re.search(r"/list/([a-zA-Z0-9]{5,})/", url)
+            if not match:
+                st.error("Invalid Tranco URL format.")
+            else:
+                tranco_id = match.group(1)
+                download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
+                try:
+                    response = requests.get(download_url)
+                    if response.status_code == 200:
+                        with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                            f.write(response.content)
+                        save_tranco_meta(tranco_id)
+                        st.success(f"\u2705 Downloaded Tranco list (ID: {tranco_id})")
+                    else:
+                        st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
+                except Exception as e:
+                    st.error(f"Error downloading Tranco list: {e}")
 
     st.markdown("---")
     st.subheader("\U0001F553 Recent Publishers")
