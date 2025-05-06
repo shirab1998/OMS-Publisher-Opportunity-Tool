@@ -331,7 +331,7 @@ if st.button("🔁 Start Over"):
     st.rerun()
 
 # --- SKIPPED DOMAINS REPORT ---
-if st.session_state.skipped_log:
+if st.session_state.get("skipped_log"):
     with st.expander("⛔ Skipped Domains", expanded=False):
         st.subheader("⛔ Skipped Domains")
         skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
