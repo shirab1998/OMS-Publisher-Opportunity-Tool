@@ -436,10 +436,9 @@ def format_dataframe(df):
     # Drop the highlight column before display
     display_df = styled_df.drop(columns=["Highlight"])
     
-	# Just return the DataFrame with an extra color tag
-			
-	return display_df
+	# Just return the DataFrame with an extra color tag	
 
+return display_df
 
 # Function to check one domain
 def check_single_domain(domain, pub_seller_domain, pub_id):
