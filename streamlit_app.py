@@ -436,7 +436,10 @@ def format_dataframe(df):
     # Drop the highlight column before display
     display_df = styled_df.drop(columns=["Highlight"])
     
-    return display_df.style.apply(highlight_rows, axis=1)
+	# Just return the DataFrame with an extra color tag
+			
+	return display_df
+
 
 # Function to check one domain
 def check_single_domain(domain, pub_seller_domain, pub_id):
@@ -605,8 +608,11 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                 else:
                     progress = st.progress(0)
                     progress_text = st.empty()
-                    
+				  
                     for idx, domain in enumerate(domains, start=1):
+					
+					progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx / len(domains)):.1f}%)")
+					progress.progress(idx / len(domains))
                         try:
                             progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx/len(domains)*100):.1f}%): {domain}")
                             
@@ -786,7 +792,15 @@ if "opportunities_table" in st.session_state and not st.session_state.opportunit
     clickable_df = styled_df.copy()
     clickable_df.format({'Domain': make_clickable})
     
-    st.dataframe(styled_df, use_container_width=True)
+	edited_df = st.data_editor(
+    st.session_state.opportunities_table,
+    num_rows="dynamic",
+    use_container_width=True
+)
+
+# Save back edits to session
+st.session_state.opportunities_table = edited_df
+
 	st.subheader("📝 Domain Notes & Tags")
 	st.markdown("Add notes or tags to domains (e.g., 'contacted', 'low CPM', 'priority'). Changes are saved automatically."	)
 
