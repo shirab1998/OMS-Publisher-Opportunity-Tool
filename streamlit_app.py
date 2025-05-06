@@ -599,12 +599,13 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                     progress = st.progress(0)
                     progress_text = st.empty()
                     
-                    for idx, domain in enumerate(domains, start=1):
-                        progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx / len(domains)*100):.1f}%): {domain}")
-                        progress.progress(idx / len(domains))
-						
-		    progress.progress(100)
-		    progress_text.text("✅ All domains processed successfully!")
+		for idx, domain in enumerate(domains, start=1):
+		    progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx / len(domains)*100):.1f}%): {domain}")
+		    progress.progress(idx / len(domains))
+
+		progress.progress(100)
+		progress_text.text("✅ All domains processed successfully!")
+
 					
                         try:
                             domain_result = check_single_domain(domain, pub_seller_domain, pub_id)
