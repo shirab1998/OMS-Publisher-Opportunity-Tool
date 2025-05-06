@@ -267,6 +267,39 @@ def parse_adstxt_line(line):
         'tag': parts[3].strip() if len(parts) > 3 else ''
     }
 
+# --- DATAFRAME FORMATTING FUNCTION ---
+def format_dataframe(df):
+    """Format dataframe with colors based on rank and owner/manager status"""
+    styled_df = df.copy()
+    
+    # Create a copy for styling
+    if "Highlight" not in styled_df.columns:
+        styled_df["Highlight"] = "none"
+    
+    # Set highlights based on logic
+    styled_df.loc[styled_df["Tranco Rank"] <= 50000, "Highlight"] = "high_value"
+    
+    if "Owner_Manager" in styled_df.columns:
+        # Domains where publisher is owner/manager get the yellow highlight
+        styled_df.loc[(styled_df["Owner_Manager"] == "Owner") | 
+                     (styled_df["Owner_Manager"] == "Manager"), "Highlight"] = "owner_manager"
+    
+    # Apply formatting
+    def highlight_rows(row):
+        value = row["Highlight"]
+        if value == "high_value":
+            return ["background-color: #d4edda"] * len(row)
+        elif value == "owner_manager":
+            return ["background-color: #fff3cd"] * len(row)
+        else:
+            return [""] * len(row)
+    
+    # Drop the highlight column before display
+    display_df = styled_df.drop(columns=["Highlight"])
+    
+    # Just return the DataFrame with an extra color tag
+    return display_df
+
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
 st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
@@ -405,40 +438,6 @@ if sample_direct_line:
     parts = [p.strip() for p in sample_direct_line.split(',', 3)]
     if len(parts) >= 1:
         pub_seller_domain = parts[0].lower()
-
-# --- DATAFRAME FORMATTING FUNCTION ---
-def format_dataframe(df):
-    """Format dataframe with colors based on rank and owner/manager status"""
-    styled_df = df.copy()
-    
-    # Create a copy for styling
-    if "Highlight" not in styled_df.columns:
-        styled_df["Highlight"] = "none"
-    
-    # Set highlights based on logic
-    styled_df.loc[styled_df["Tranco Rank"] <= 50000, "Highlight"] = "high_value"
-    
-    if "Owner_Manager" in styled_df.columns:
-        # Domains where publisher is owner/manager get the yellow highlight
-        styled_df.loc[(styled_df["Owner_Manager"] == "Owner") | 
-                     (styled_df["Owner_Manager"] == "Manager"), "Highlight"] = "owner_manager"
-    
-    # Apply formatting
-    def highlight_rows(row):
-        value = row["Highlight"]
-        if value == "high_value":
-            return ["background-color: #d4edda"] * len(row)
-        elif value == "owner_manager":
-            return ["background-color: #fff3cd"] * len(row)
-        else:
-            return [""] * len(row)
-    
-    # Drop the highlight column before display
-    display_df = styled_df.drop(columns=["Highlight"])
-    
-	# Just return the DataFrame with an extra color tag	
-
-return display_df
 
 # Function to check one domain
 def check_single_domain(domain, pub_seller_domain, pub_id):
@@ -599,13 +598,11 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                 else:
                     progress = st.progress(0)
                     progress_text = st.empty()
-				  
-                    for idx, domain in enumerate(domains, start=1):		
-		        progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx / len(domains)):.1f}%)")
-			progress.progress(idx / len(domains))
+                    
+                    for idx, domain in enumerate(domains, start=1):
+                        progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx / len(domains)*100):.1f}%): {domain}")
+                        progress.progress(idx / len(domains))
                         try:
-                            progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx/len(domains)*100):.1f}%): {domain}")
-                            
                             domain_result = check_single_domain(domain, pub_seller_domain, pub_id)
                             
                             if "error" in domain_result:
@@ -620,6 +617,7 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                                             "Tranco Rank": tranco_rankings[domain.lower()],
                                             "OMS Buying": "No",  # Default since we don't know
                                             "Owner_Manager": owner_status,
+                                            "Notes": ""
                                         })
                                         # Still log the error
                                         st.session_state.skipped_log.append((domain, domain_result["error"] + f" (but kept as {owner_status})"))
@@ -636,23 +634,21 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                         except Exception as e:
                             st.session_state.skipped_log.append((domain, f"Unexpected error: {str(e)}"))
 
-                        progress.progress(idx / len(domains))
-
-					if not results:
-						st.warning("No monetization opportunities found based on your criteria.")
-						add_notification("No opportunities found", "warning")
-						st.session_state.current_step = "input"
-					else:
-						st.session_state.current_step = "results"
-						df_results = pd.DataFrame(results)
-    
-					# Make sure Notes column exists
-					if "Notes" not in df_results.columns:
-						df_results["Notes"] = ""
-        
-					df_results.sort_values("Tranco Rank", inplace=True)
-					st.session_state.opportunities_table = df_results
-	
+                    if not results:
+                        st.warning("No monetization opportunities found based on your criteria.")
+                        add_notification("No opportunities found", "warning")
+                        st.session_state.current_step = "input"
+                    else:
+                        st.session_state.current_step = "results"
+                        df_results = pd.DataFrame(results)
+                        
+                        # Make sure Notes column exists
+                        if "Notes" not in df_results.columns:
+                            df_results["Notes"] = ""
+                            
+                        df_results.sort_values("Tranco Rank", inplace=True)
+                        st.session_state.opportunities_table = df_results
+                        
                         key = f"{pub_name or 'manual'}_{pub_id}"
                         st.session_state.setdefault("history", {})
                         st.session_state["history"][key] = {
@@ -671,8 +667,7 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                 import traceback
                 st.error(traceback.format_exc())
                 st.session_state.current_step = "input"
-				
-				
+
 # --- ONE-CLICK RECHECK FUNCTIONALITY ---
 def recheck_domain(domain):
     """Recheck a previously skipped domain and add it to results if successful"""
@@ -686,17 +681,6 @@ def recheck_domain(domain):
         domain_row = st.session_state.opportunities_table[st.session_state.opportunities_table["Domain"] == domain]
         if not domain_row.empty and 'Notes' in domain_row.columns:
             existing_notes = domain_row.iloc[0]['Notes']
-    
-    # Then after this section where the result is checked:
-    # elif "error" in result:
-    #     add_notification(f"Recheck failed: {result['error']}", "error")
-    #     return
-    
-    # Add this to restore notes:
-    # Add existing notes back to result
-    if "error" not in result:
-        result["Notes"] = existing_notes
-
     
     with st.spinner(f"🔍 Rechecking {domain}..."):
         result = check_single_domain(domain, pub_seller_domain, pub_id)
