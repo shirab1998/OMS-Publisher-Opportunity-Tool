@@ -592,13 +592,13 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                         st.error(f"Error fetching sellers.json: {str(e)}")
                         add_notification("Error fetching sellers.json", "error")
                 
-                if not domains:
-                    st.error("No valid domains found to check.")
+		if not domains:
+		    st.error("No valid domains found to check.")
                     add_notification("No valid domains found", "error")
-                else:
-                    progress = st.progress(0)
-                    progress_text = st.empty()
-                    
+		else:
+		    progress = st.progress(0)
+		    progress_text = st.empty()
+
 		for idx, domain in enumerate(domains, start=1):
 		    progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx / len(domains)*100):.1f}%): {domain}")
 		    progress.progress(idx / len(domains))
