@@ -225,6 +225,8 @@ if not st.session_state.opportunities_table.empty:
     oms_no = total - oms_yes
     skipped = len(st.session_state.get("skipped_log", []))
 
+    st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
+
     styled_df = st.session_state.opportunities_table.copy()
 
     def highlight(row):
@@ -238,28 +240,7 @@ if not st.session_state.opportunities_table.empty:
         styled_df.style.apply(highlight, axis=1),
         use_container_width=True
     )
-    
-    st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
-    styled_df = st.session_state.opportunities_table.copy()
-    styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
-    styled_df_display = styled_df.drop(columns=["Highlight"])
-    
-    st.dataframe(
-        styled_df_display.style.apply(
-            lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
-            axis=0
-        ),
-        use_container_width=True
-    )
-
-    csv_data = st.session_state.opportunities_table.to_csv(index=False)
-    st.download_button(
-        "⬇️ Download Opportunities CSV",
-        data=csv_data,
-        file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
-        mime="text/csv"
-    )
 # --- EMAIL SECTION ---
 if not st.session_state.opportunities_table.empty:
     def sanitize_header(text):
