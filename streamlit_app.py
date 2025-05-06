@@ -732,21 +732,21 @@ def recheck_domain(domain):
 # --- RESULTS DISPLAY ---
 if "opportunities_table" in st.session_state and not st.session_state.opportunities_table.empty:
     st.session_state.current_step = "results"
-    
+
     st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
-    
+
     # Success stats
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
     oms_no = total - oms_yes
     skipped_count = len(st.session_state.skipped_log) if "skipped_log" in st.session_state else 0
-    
+
     # Stats bar with better formatting
     stats_cols = st.columns([1, 1, 1])
     stats_cols[0].metric("Total Domains Scanned", f"{total + skipped_count}")
     stats_cols[1].metric("Opportunities Found", f"{total}")
     stats_cols[2].metric("Skipped Domains", f"{skipped_count}")
-    
+
     # Legend for color coding
     st.markdown("""
     <div style="margin-bottom: 10px; padding: 8px; border-radius: 4px; background-color: #f8f9fa;">
@@ -755,85 +755,79 @@ if "opportunities_table" in st.session_state and not st.session_state.opportunit
         <span style="background-color: #fff3cd; padding: 2px 5px; margin: 0 5px; border-radius: 3px;">Yellow</span> = Publisher is owner/manager
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Display properly formatted table
     styled_df = format_dataframe(st.session_state.opportunities_table)
-    
+
     # Add clickable domain links through a component
     def make_clickable(val):
         return f'<a href="https://{val}" target="_blank">{val}</a>'
-    
+
     clickable_df = styled_df.copy()
     clickable_df.format({'Domain': make_clickable})
-    
-	edited_df = st.data_editor(
-    st.session_state.opportunities_table,
-    num_rows="dynamic",
-    use_container_width=True
-)
 
-# Save back edits to session
-st.session_state.opportunities_table = edited_df
+    edited_df = st.data_editor(
+        st.session_state.opportunities_table,
+        num_rows="dynamic",
+        use_container_width=True
+    )
 
-	st.subheader("📝 Domain Notes & Tags")
-	st.markdown("Add notes or tags to domains (e.g., 'contacted', 'low CPM', 'priority'). Changes are saved automatically."	)
+    # Save back edits to session
+    st.session_state.opportunities_table = edited_df
 
-# Create a container for the notes editor
-	notes_container = st.container()	
-    
-# Create an edit interface for each row
-with notes_container:
-    for idx, row in st.session_state.opportunities_table.iterrows():
-        domain = row['Domain']
-        
-        # Create unique key for each domain's notes
-        note_key = f"note_{domain.replace('.', '_')}"
-        
-        # Initialize the note in session state if not already there
-        if note_key not in st.session_state:
-            st.session_state[note_key] = row.get('Notes', '')
-            
-        # Create a row with domain and note input
-        cols = st.columns([2, 5])
-        cols[0].markdown(f"**{domain}**")
-        
-        # When note is changed, update the dataframe
-        updated_note = cols[1].text_input(
-            "Note", 
-            value=st.session_state[note_key],
-            key=f"input_{note_key}",
-            label_visibility="collapsed"
-        )
-        
-        # Update dataframe when note changes
-        if updated_note != st.session_state[note_key]:
-            st.session_state[note_key] = updated_note
-            st.session_state.opportunities_table.at[idx, 'Notes'] = updated_note
-            
-            # Also update in history
-            if "history" in st.session_state:
-                key = f"{pub_name or 'manual'}_{pub_id}"
-                if key in st.session_state["history"]:
-                    st.session_state["history"][key]["table"].at[idx, 'Notes'] = updated_note
-					
-					
+    st.subheader("📝 Domain Notes & Tags")
+    st.markdown("Add notes or tags to domains (e.g., 'contacted', 'low CPM', 'priority'). Changes are saved automatically.")
+
+    # Create a container for the notes editor
+    notes_container = st.container()
+
+    # Create an edit interface for each row
+    with notes_container:
+        for idx, row in st.session_state.opportunities_table.iterrows():
+            domain = row['Domain']
+
+            # Create unique key for each domain's notes
+            note_key = f"note_{domain.replace('.', '_')}"
+
+            # Initialize the note in session state if not already there
+            if note_key not in st.session_state:
+                st.session_state[note_key] = row.get('Notes', '')
+
+            # Create a row with domain and note input
+            cols = st.columns([2, 5])
+            cols[0].markdown(f"**{domain}**")
+
+            # When note is changed, update the dataframe
+            updated_note = cols[1].text_input(
+                "Note",
+                value=st.session_state[note_key],
+                key=f"input_{note_key}",
+                label_visibility="collapsed"
+            )
+
+            # Update dataframe when note changes
+            if updated_note != st.session_state[note_key]:
+                st.session_state[note_key] = updated_note
+                st.session_state.opportunities_table.at[idx, 'Notes'] = updated_note
+
+                # Also update in history
+                if "history" in st.session_state:
+                    key = f"{pub_name or 'manual'}_{pub_id}"
+                    if key in st.session_state["history"]:
+                        st.session_state["history"][key]["table"].at[idx, 'Notes'] = updated_note
+
     # Download CSV button with enhanced formatting
     @st.cache_data
     def convert_df_to_csv_with_formatting(df):
-        # Create a copy for CSV formatting
         csv_df = df.copy()
-        
-        # Add a column for Excel conditional formatting (can be read by Excel)
         csv_df['_highlight'] = 'none'
         csv_df.loc[csv_df['Tranco Rank'] <= 50000, '_highlight'] = 'high_value'
         csv_df.loc[csv_df['Owner_Manager'].isin(['Owner', 'Manager']), '_highlight'] = 'owner_manager'
-        
         return csv_df.to_csv(index=False)
-    
+
     csv_data = convert_df_to_csv_with_formatting(st.session_state.opportunities_table)
     col1, col2 = st.columns([1, 1])
-    
-    # Download CSV button
+
     col1.download_button(
         "⬇️ Download Opportunities CSV",
         data=csv_data,
@@ -841,16 +835,15 @@ with notes_container:
         mime="text/csv",
         help="Alt+D"
     )
-    
-    # Generate a pre-formatted Excel file (optional)
+
     if col2.button("📊 Generate Excel Report"):
         with st.spinner("Preparing Excel report..."):
             add_notification("Excel report generation not implemented yet", "info")
-    
+
     # Add email function if we have results
     st.markdown("### 📧 Email This List")
     st.markdown("Send the results with proper formatting to a team member:")
-    
+
     email_cols = st.columns([3, 5])
     email_local_part = email_cols[0].text_input(
         "Email Address",
@@ -862,144 +855,113 @@ with notes_container:
         "<div style='margin-top: 0.6em; font-size: 16px;'>@onlinemediasolutions.com</div>",
         unsafe_allow_html=True
     )
-    
-	def send_email():
-    """Send email with formatted results table"""
-    if not email_local_part.strip():
-        st.error("Please enter a valid username before sending the email.")
-        add_notification("Missing email username", "error")
-        return
 
-    try:
-        if not hasattr(st, "secrets") or "EMAIL_ADDRESS" not in st.secrets or "EMAIL_PASSWORD" not in st.secrets:
-            st.error("Email configuration missing. Please check your Streamlit secrets.")
-            add_notification("Email configuration missing", "error")
+    def send_email():
+        """Send email with formatted results table"""
+        if not email_local_part.strip():
+            st.error("Please enter a valid username before sending the email.")
+            add_notification("Missing email username", "error")
             return
 
-        full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
-        from_email = st.secrets["EMAIL_ADDRESS"]
-        email_password = st.secrets["EMAIL_PASSWORD"]
+        try:
+            if not hasattr(st, "secrets") or "EMAIL_ADDRESS" not in st.secrets or "EMAIL_PASSWORD" not in st.secrets:
+                st.error("Email configuration missing. Please check your Streamlit secrets.")
+                add_notification("Email configuration missing", "error")
+                return
 
-        def sanitize_header(text):
-            text = unicodedata.normalize("NFKD", str(text))
-            text = re.sub(r'[^ -~]', '', text)
-            return text.strip().replace("\r", "").replace("\n", "")
+            full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
+            from_email = st.secrets["EMAIL_ADDRESS"]
+            email_password = st.secrets["EMAIL_PASSWORD"]
 
-        subject_name = sanitize_header(pub_name or "Manual Domains")
-        subject_id = sanitize_header(pub_id or "NoID")
+            def sanitize_header(text):
+                text = unicodedata.normalize("NFKD", str(text))
+                text = re.sub(r'[^ -~]', '', text)
+                return text.strip().replace("\r", "").replace("\n", "")
 
-        msg = EmailMessage()
-        msg["Subject"] = f"{subject_name} ({subject_id}) Monetization Opportunities"
-        msg["From"] = from_email.strip()
-        msg["To"] = full_email.strip()
+            subject_name = sanitize_header(pub_name or "Manual Domains")
+            subject_id = sanitize_header(pub_id or "NoID")
 
-        # Construct HTML rows
-        styled_rows = ""
-        for _, row in st.session_state.opportunities_table.iterrows():
-            bg_color = "#FFFFFF"
-            if row["Tranco Rank"] <= 50000:
-                bg_color = "#d4edda"
-            elif row["Owner_Manager"] in ["Owner", "Manager"]:
-                bg_color = "#fff3cd"
+            msg = EmailMessage()
+            msg["Subject"] = f"{subject_name} ({subject_id}) Monetization Opportunities"
+            msg["From"] = from_email.strip()
+            msg["To"] = full_email.strip()
 
-            notes = row.get("Notes", "")
-            styled_rows += f"""
-                <tr style="background-color: {bg_color}">
-                    <td><a href="https://{row['Domain']}" target="_blank">{row['Domain']}</a></td>
-                    <td>{row['Tranco Rank']}</td>
-                    <td>{row['Owner_Manager']}</td>
-                    <td>{row['OMS Buying']}</td>
-                    <td>{notes}</td>
-                </tr>
-            """
+            styled_rows = ""
+            for _, row in st.session_state.opportunities_table.iterrows():
+                bg_color = "#FFFFFF"
+                if row["Tranco Rank"] <= 50000:
+                    bg_color = "#d4edda"
+                elif row["Owner_Manager"] in ["Owner", "Manager"]:
+                    bg_color = "#fff3cd"
 
-        # Construct HTML body
-        html_table = f"""
-        <html>
-          <body style="font-family:Arial; font-size:14px;">
-            <p>Hello,</p>
-            <p>Here are the monetization opportunities for <strong>{subject_name}</strong> (ID: {subject_id}):</p>
-            <p><strong>Legend:</strong><br>
-                <span style="background-color: #d4edda; padding: 2px 5px;">Green</span> = High-value opportunities (Tranco rank ≤ 50,000)<br>
-                <span style="background-color: #fff3cd; padding: 2px 5px;">Yellow</span> = Publisher is owner/manager
-            </p>
-            <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-              <thead style="background-color:#f2f2f2;">
-                <tr>
-                  <th>Domain</th>
-                  <th>Tranco Rank</th>
-                  <th>Owner/Manager</th>
-                  <th>OMS Buying</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {styled_rows}
-              </tbody>
-            </table>
-            <p>Best regards,<br>The OMS Team</p>
-          </body>
-        </html>
-        """
+                notes = row.get("Notes", "")
+                styled_rows += f"""
+                    <tr style="background-color: {bg_color}">
+                        <td><a href="https://{row['Domain']}" target="_blank">{row['Domain']}</a></td>
+                        <td>{row['Tranco Rank']}</td>
+                        <td>{row['Owner_Manager']}</td>
+                        <td>{row['OMS Buying']}</td>
+                        <td>{notes}</td>
+                    </tr>
+                """
 
-        msg.set_content("This is an HTML email. Please view it in an HTML-compatible email client.")
-        msg.add_alternative(html_table, subtype='html')
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(from_email, email_password)
-            smtp.send_message(msg)
-
-        st.success(f"📧 Email successfully sent to {full_email}")
-        add_notification(f"Email sent to {full_email}", "success")
-
-    except Exception as e:
-        st.error(f"Error sending email: {str(e)}")
-        add_notification("Email sending failed", "error")
-
-            
-            # Complete HTML table
-			html_table = f"""
-			<table border="1" cellpadding="5" cellspacing="0" style="font-family:Arial; font-size:14px; border-collapse:collapse;">
-				<thead style="background-color:#f2f2f2;">
-					<tr>
-						<th>Domain</th>
-						<th>Tranco Rank</th>
-						<th>Owner/Manager</th>
-						<th>OMS Buying</th>
-						<th>Notes</th>
-					</tr>
-				</thead>
-				<tbody>
-					{styled_rows}
-				</tbody>
-			</table>"""
-            
-            # Complete email body
-            body = f"""
+            html_table = f"""
             <html>
-              <body>
+              <body style="font-family:Arial; font-size:14px;">
                 <p>Hello,</p>
                 <p>Here are the monetization opportunities for <strong>{subject_name}</strong> (ID: {subject_id}):</p>
                 <p><strong>Legend:</strong><br>
-                <span style="background-color: #d4edda; padding: 2px 5px;">Green</span> = High-value opportunities (Tranco rank ≤ 50,000)<br>
-                <span style="
+                    <span style="background-color: #d4edda; padding: 2px 5px;">Green</span> = High-value opportunities (Tranco rank ≤ 50,000)<br>
+                    <span style="background-color: #fff3cd; padding: 2px 5px;">Yellow</span> = Publisher is owner/manager
+                </p>
+                <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+                  <thead style="background-color:#f2f2f2;">
+                    <tr>
+                      <th>Domain</th>
+                      <th>Tranco Rank</th>
+                      <th>Owner/Manager</th>
+                      <th>OMS Buying</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {styled_rows}
+                  </tbody>
+                </table>
+                <p>Best regards,<br>The OMS Team</p>
+              </body>
+            </html>
+            """
+
+            msg.set_content("This is an HTML email. Please view it in an HTML-compatible email client.")
+            msg.add_alternative(html_table, subtype='html')
+
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                smtp.login(from_email, email_password)
+                smtp.send_message(msg)
+
+            st.success(f"📧 Email successfully sent to {full_email}")
+            add_notification(f"Email sent to {full_email}", "success")
+
+        except Exception as e:
+            st.error(f"Error sending email: {str(e)}")
+            add_notification("Email sending failed", "error")
 
 # --- SKIPPED DOMAINS DISPLAY ---
 if "skipped_log" in st.session_state and st.session_state.skipped_log:
     with st.expander("⚠️ Skipped Domains", expanded=False):
         st.markdown("### ⚠️ Skipped Domains")
         st.markdown("These domains were skipped during processing. You can recheck them individually.")
-        
+
         skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
-        
+
         for idx, (domain, reason) in enumerate(st.session_state.skipped_log):
             col1, col2, col3 = st.columns([5, 3, 2])
             col1.markdown(f"**{domain}**")
             col2.markdown(f"_{reason}_")
             if col3.button("Recheck", key=f"recheck_{idx}"):
                 recheck_domain(domain)
-        
-        # Download button for skipped domains
+
         skipped_csv = skipped_df.to_csv(index=False)
         st.download_button(
             "⬇️ Download Skipped Domains CSV",
@@ -1010,22 +972,17 @@ if "skipped_log" in st.session_state and st.session_state.skipped_log:
 
 # --- START OVER BUTTON ---
 if st.button("🔄 Start Over", help="Alt+R"):
-    # Keep history but clear everything else
     history_backup = st.session_state.get("history", {}).copy()
     tranco_data_backup = st.session_state.get("tranco_data", None)
-    
-    # Clear session state
+
     st.session_state.clear()
-    
-    # Restore history and tranco data
+
     st.session_state["history"] = history_backup
     if tranco_data_backup is not None:
         st.session_state["tranco_data"] = tranco_data_backup
-    
-    # Reset current step
+
     st.session_state.current_step = "input"
-    
-    # Force reload
+
     st.experimental_rerun()
 
 # --- DISPLAY NOTIFICATIONS ---
