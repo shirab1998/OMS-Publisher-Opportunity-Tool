@@ -95,7 +95,6 @@ with st.sidebar:
                         axis=0
                     ),
                     use_container_width=True
-                )
                 st.stop()
 
 # --- TRANCO LOADING ---
