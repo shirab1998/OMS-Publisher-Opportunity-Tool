@@ -602,6 +602,8 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                     for idx, domain in enumerate(domains, start=1):
                         progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx / len(domains)*100):.1f}%): {domain}")
                         progress.progress(idx / len(domains))
+					progress.progress(100)
+					progress_text.text("✅ All domains processed successfully!")
                         try:
                             domain_result = check_single_domain(domain, pub_seller_domain, pub_id)
                             
@@ -764,8 +766,7 @@ if "opportunities_table" in st.session_state and not st.session_state.opportunit
         return f'<a href="https://{val}" target="_blank">{val}</a>'
 
     clickable_df = styled_df.copy()
-    clickable_df.format({'Domain': make_clickable})
-
+    
     edited_df = st.data_editor(
         st.session_state.opportunities_table,
         num_rows="dynamic",
