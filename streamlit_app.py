@@ -528,17 +528,9 @@ def check_single_domain(domain, pub_seller_domain, pub_id):
             "Domain": domain,
             "Tranco Rank": rank,
             "OMS Buying": "Yes" if is_oms_buyer else "No",
-            "Owner_Manager": owner_status
+            "Owner_Manager": owner_status,
+            "Notes": ""  # Add empty Notes field for each domain
         }
-		# And add "Notes" field like this:
-return {
-    "Domain": domain,
-    "Tranco Rank": rank,
-    "OMS Buying": "Yes" if is_oms_buyer else "No",
-    "Owner_Manager": owner_status,
-    "Notes": ""  # Add empty Notes field for each domain
-}
-
     except requests.exceptions.RequestException as e:
         return {"error": f"Request error: {str(e)}"}
     except Exception as e:
