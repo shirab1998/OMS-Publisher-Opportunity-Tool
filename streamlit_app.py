@@ -9,11 +9,21 @@ import smtplib
 from email.message import EmailMessage
 import unicodedata
 import json
+import concurrent.futures
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
 TRANCO_META_FILE = "/tmp/tranco_meta.json"
 TRANCO_THRESHOLD = 210000
+
+# --- SESSION STATE INITIALIZATION ---
+def init_session_state():
+    if "opportunities_table" not in st.session_state:
+        st.session_state["opportunities_table"] = pd.DataFrame()
+    if "skipped_log" not in st.session_state:
+        st.session_state["skipped_log"] = []
+    if "show_input" not in st.session_state:
+        st.session_state["show_input"] = False
 
 # --- FUNCTIONS FOR TRANCO ---
 def get_tranco_meta():
@@ -36,8 +46,73 @@ def is_recent(date_str):
     except:
         return False
 
+def is_valid_domain(domain):
+    pattern = re.compile(r'^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$')
+    return bool(pattern.match(domain.lower()))
+
+# --- DOMAIN CHECKING FUNCTION ---
+def check_domain(domain, pub_domain, pub_id, sample_direct_line, tranco_rankings, timeout):
+    if not is_valid_domain(domain):
+        return None, (domain, "Invalid domain format")
+        
+    try:
+        ads_url = f"https://{domain}/ads.txt"
+        ads_response = requests.get(ads_url, timeout=timeout)
+        
+        if ads_response.status_code != 200:
+            return None, (domain, f"HTTP Error: {ads_response.status_code}")
+        
+        # Check if content is text (to avoid binary files)
+        content_type = ads_response.headers.get('Content-Type', '')
+        if 'text' not in content_type.lower() and 'plain' not in content_type.lower():
+            return None, (domain, f"Invalid content type: {content_type}")
+            
+        ads_lines = ads_response.text.splitlines()
+        
+        validation_reason = None
+        for line in ads_lines:
+            if sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower():
+                validation_reason = "direct"
+                break
+            elif pub_domain and f"managerdomain={pub_domain.lower()}" in line.lower():
+                validation_reason = "managerdomain"
+                break
+                
+        if not validation_reason:
+            return None, (domain, "No valid ads.txt line for publisher")
+            
+        if any(
+            "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
+            for line in ads_lines
+        ):
+            return None, (domain, "OMS is already buying from this publisher")
+            
+        is_oms_buyer = any(
+            "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
+            for line in ads_lines
+        )
+        
+        if domain.lower() not in tranco_rankings:
+            return None, (domain, "Not in Tranco top list")
+            
+        rank = tranco_rankings[domain.lower()]
+        return {
+            "Domain": domain,
+            "Tranco Rank": rank,
+            "OMS Buying": "Yes" if is_oms_buyer else "No",
+            "Validation Reason": validation_reason
+        }, None
+        
+    except requests.exceptions.Timeout:
+        return None, (domain, "Request timed out")
+    except requests.exceptions.ConnectionError:
+        return None, (domain, "Connection error")
+    except Exception as e:
+        return None, (domain, f"Request error: {str(e)[:100]}")
+
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
+init_session_state()  # Initialize session state
 st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 
 # --- TRANCO LOADING ---
@@ -99,6 +174,12 @@ with st.sidebar:
                         st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
                 except Exception as e:
                     st.error(f"Error downloading Tranco list: {e}")
+    
+    # Additional settings
+    st.markdown("### ⚙️ Settings")
+    timeout_seconds = st.slider("Request Timeout (seconds)", 5, 30, 10)
+    max_workers = st.slider("Parallel Connections", 1, 10, 5)
+    request_delay = st.slider("Delay Between Requests (sec)", 0.0, 1.0, 0.1, 0.1)
 
 # --- INPUT SECTION ---
 st.markdown("### 📝 Enter Publisher Details")
@@ -107,7 +188,7 @@ manual_mode = st.checkbox("🔀 Use Manual Domains Instead", value=False)
 
 if not manual_mode:
     pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
-    pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
+    pub_name = st.text_input("Publisher Name", placeholder="Example Media")
     manual_domains_input = ""
 else:
     st.info("Manual mode active: Paste domains manually. Publisher Domain/Name are hidden.")
@@ -134,7 +215,7 @@ if st.button("🔍 Find Monetization Opportunities"):
             else:
                 sellers_url = f"https://{pub_domain}/sellers.json"
                 try:
-                    sellers_response = requests.get(sellers_url, timeout=10)
+                    sellers_response = requests.get(sellers_url, timeout=timeout_seconds)
                     if sellers_response.status_code == 200:
                         try:
                             sellers_data = sellers_response.json()
@@ -157,65 +238,40 @@ if st.button("🔍 Find Monetization Opportunities"):
             else:
                 progress = st.progress(0)
                 progress_text = st.empty()
-                for idx, domain in enumerate(domains, start=1):
-                    try:
-                        ads_url = f"https://{domain}/ads.txt"
-                        ads_response = requests.get(ads_url, timeout=10)
-                        ads_lines = ads_response.text.splitlines()
-
-                        validation_reason = None
-                        for line in ads_lines:
-                            if sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower():
-                                validation_reason = "direct"
-                                break
-                            elif f"managerdomain={pub_domain.lower()}" in line.lower():
-                                validation_reason = "managerdomain"
-                                break
-
-                        if not validation_reason:
-                            skipped_log.append((domain, "No valid ads.txt line for publisher"))
-                            continue
-
-                        if any(
-                            "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
-                            for line in ads_lines
-                        ):
-                            skipped_log.append((domain, "OMS is already buying from this publisher"))
-                            continue
-
-                        is_oms_buyer = any(
-                            "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
-                            for line in ads_lines
-                        )
-
-                        if domain.lower() not in tranco_rankings:
-                            skipped_log.append((domain, "Not in Tranco top list"))
-                            continue
-
-                        rank = tranco_rankings[domain.lower()]
-                        results.append({
-                            "Domain": domain,
-                            "Tranco Rank": rank,
-                            "OMS Buying": "Yes" if is_oms_buyer else "No",
-                            "Validation Reason": validation_reason
-                        })
-                        time.sleep(0.1)
-
-                    except Exception as e:
-                        skipped_log.append((domain, f"Request error: {e}"))
-
-                    progress.progress(idx / len(domains))
-                    progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
+                
+                # Parallel processing of domains
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_domain = {
+                        executor.submit(
+                            check_domain, 
+                            domain, 
+                            pub_domain, 
+                            pub_id, 
+                            sample_direct_line, 
+                            tranco_rankings,
+                            timeout_seconds
+                        ): domain for domain in domains
+                    }
+                    
+                    for idx, future in enumerate(concurrent.futures.as_completed(future_to_domain), 1):
+                        domain = future_to_domain[future]
+                        try:
+                            result, error = future.result()
+                            if result:
+                                results.append(result)
+                            if error:
+                                skipped_log.append(error)
+                        except Exception as e:
+                            skipped_log.append((domain, f"Processing error: {e}"))
+                            
+                        # Update progress
+                        progress.progress(idx / len(domains))
+                        progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain} ({int(idx/len(domains)*100)}%)")
+                        time.sleep(request_delay)  # Small delay to avoid overwhelming UI
 
                 df_results = pd.DataFrame(results)
-                if not df_results.empty and "Tranco Rank" in df_results.columns:
+                if not df_results.empty:
                     df_results.sort_values("Tranco Rank", inplace=True)
-                else:
-                    st.warning("No valid opportunities found. All domains were skipped.")
-                    st.session_state["opportunities_table"] = pd.DataFrame()
-                    st.session_state["skipped_log"] = skipped_log
-                    st.stop()
-
                 st.session_state["opportunities_table"] = df_results
                 st.session_state["skipped_log"] = skipped_log
                 st.success("✅ Analysis complete.")
@@ -223,17 +279,15 @@ if st.button("🔍 Find Monetization Opportunities"):
 
 
 # --- RESULTS DISPLAY ---
-st.session_state.setdefault("opportunities_table", pd.DataFrame())
-
-if not st.session_state.opportunities_table.empty:
+if not st.session_state.get("opportunities_table", pd.DataFrame()).empty:
     st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
-    total = len(st.session_state.opportunities_table)
-    oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
+    total = len(st.session_state["opportunities_table"])
+    oms_yes = (st.session_state["opportunities_table"]["OMS Buying"] == "Yes").sum()
     oms_no = total - oms_yes
     skipped = len(st.session_state.get("skipped_log", []))
 
-    styled_df = st.session_state.opportunities_table.copy()
-
+    styled_df = st.session_state["opportunities_table"].copy()
+    
     def highlight(row):
         if row.get("Validation Reason") == "managerdomain":
             return ['background-color: #fff9cc'] * len(row)
@@ -248,27 +302,16 @@ if not st.session_state.opportunities_table.empty:
     
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
-    styled_df = st.session_state.opportunities_table.copy()
-    styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
-    styled_df_display = styled_df.drop(columns=["Highlight"])
-    
-    st.dataframe(
-        styled_df_display.style.apply(
-            lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
-            axis=0
-        ),
-        use_container_width=True
-    )
-
-    csv_data = st.session_state.opportunities_table.to_csv(index=False)
+    csv_data = st.session_state["opportunities_table"].to_csv(index=False)
     st.download_button(
         "⬇️ Download Opportunities CSV",
         data=csv_data,
         file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
         mime="text/csv"
     )
+
 # --- EMAIL SECTION ---
-if not st.session_state.opportunities_table.empty:
+if not st.session_state.get("opportunities_table", pd.DataFrame()).empty:
     def sanitize_header(text):
         text = unicodedata.normalize("NFKD", text)
         text = re.sub(r'[^ -~]', '', text)
@@ -301,7 +344,7 @@ if not st.session_state.opportunities_table.empty:
                 msg["From"] = from_email.strip()
                 msg["To"] = full_email.strip()
 
-                html_table = st.session_state.opportunities_table.to_html(
+                html_table = st.session_state["opportunities_table"].to_html(
                     index=False, border=1, justify='center', classes='styled-table'
                 )
                 body = f"""
@@ -357,7 +400,7 @@ if st.button("🔁 Start Over"):
     st.rerun()
 
 # --- SKIPPED DOMAINS REPORT ---
-if st.session_state.skipped_log:
+if "skipped_log" in st.session_state and st.session_state.skipped_log:
     with st.expander("⛔ Skipped Domains", expanded=False):
         st.subheader("⛔ Skipped Domains")
         skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
