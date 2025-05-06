@@ -216,14 +216,18 @@ if st.button("🔍 Find Monetization Opportunities"):
 
 
 # --- RESULTS DISPLAY ---
+# --- RESULTS DISPLAY ---
+import pandas as pd
+
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
+st.session_state.setdefault("skipped_log", [])
 
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
     oms_no = total - oms_yes
-    skipped = len(st.session_state.get("skipped_log", []))
+    skipped = len(st.session_state["skipped_log"])
 
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
@@ -232,7 +236,7 @@ if not st.session_state.opportunities_table.empty:
     def highlight(row):
         if row.get("Validation Reason") == "managerdomain":
             return ['background-color: #fff9cc'] * len(row)
-        if row.get("Tranco Rank") <= 50000:
+        if row.get("Tranco Rank", float('inf')) <= 50000:
             return ['background-color: #d4edda'] * len(row)
         return [''] * len(row)
 
