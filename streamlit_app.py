@@ -204,7 +204,15 @@ if st.button("🔍 Find Monetization Opportunities"):
                     progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
                 df_results = pd.DataFrame(results)
-                df_results.sort_values("Tranco Rank", inplace=True)
+                if not df_results.empty and "Tranco Rank" in df_results.columns:
+                    df_results.sort_values("Tranco Rank", inplace=True)
+                    st.session_state["opportunities_table"] = df_results
+                    st.session_state["skipped_log"] = skipped_log
+                else:
+                    st.warning("No valid results to display. Please review skipped domains for more details.")
+                    st.session_state["opportunities_table"] = pd.DataFrame()
+                    st.session_state["skipped_log"] = skipped_log
+
                 st.session_state["opportunities_table"] = df_results
                 st.session_state["skipped_log"] = skipped_log
 
