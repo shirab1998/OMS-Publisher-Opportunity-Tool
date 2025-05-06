@@ -1,4 +1,4 @@
-    import streamlit as st
+import streamlit as st
 import requests
 import pandas as pd
 import time
@@ -199,6 +199,7 @@ if st.button("🔍 Find Monetization Opportunities"):
                             "OMS Buying": "Yes" if is_oms_buyer else "No",
                             "Validation Reason": validation_reason
                         })
+
                         time.sleep(0.1)
 
                     except Exception as e:
@@ -211,10 +212,9 @@ if st.button("🔍 Find Monetization Opportunities"):
                 if not df_results.empty and "Tranco Rank" in df_results.columns:
                     df_results.sort_values("Tranco Rank", inplace=True)
                 st.session_state["opportunities_table"] = df_results
-                if st.session_state.get("skipped_log"):
+                st.session_state["skipped_log"] = skipped_log
                 st.success("✅ Analysis complete.")
                 st.balloons()
-
 -
 # --- RESULTS DISPLAY ---
 import pandas as pd
