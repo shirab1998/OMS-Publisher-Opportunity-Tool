@@ -9,495 +9,293 @@ import smtplib
 from email.message import EmailMessage
 import unicodedata
 import json
-import io
-from streamlit.web.server.websocket_headers import _get_websocket_headers
-import uuid
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
 TRANCO_META_FILE = "/tmp/tranco_meta.json"
 TRANCO_THRESHOLD = 210000
 
-# --- SESSION STATE ---
-if "notification_queue" not in st.session_state:
-    st.session_state.notification_queue = []
+# --- FUNCTIONS FOR TRANCO ---
+def get_tranco_meta():
+    if os.path.exists(TRANCO_META_FILE):
+        with open(TRANCO_META_FILE, "r") as f:
+            return json.load(f)
+    return None
 
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())
+def save_tranco_meta(tranco_id):
+    with open(TRANCO_META_FILE, "w") as f:
+        json.dump({
+            "id": tranco_id,
+            "timestamp": datetime.now().isoformat()
+        }, f)
 
-if "skipped_log" not in st.session_state:
-    st.session_state.skipped_log = []
+def is_recent(date_str):
+    try:
+        ts = datetime.fromisoformat(date_str)
+        return (datetime.now() - ts).days < 14
+    except:
+        return False
 
-if "opportunities_table" not in st.session_state:
-    st.session_state.opportunities_table = pd.DataFrame()
+# --- STREAMLIT INTERFACE ---
+st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
+st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 
-if "history" not in st.session_state:
-    st.session_state.history = {}
+# --- SIDEBAR ---
+with st.sidebar:
+    st.header("\U0001F310 Tranco List")
+    meta = get_tranco_meta()
+    show_input = st.session_state.get("show_input", False)
 
-# --- NOTIFICATION SYSTEM ---
-def add_notification(message, type="info", duration=5):
-    """Add a notification to the queue."""
-    st.session_state.notification_queue.append({
-        "message": message,
-        "type": type,
-        "id": f"notification_{len(st.session_state.notification_queue)}",
-        "timestamp": time.time(),
-        "duration": duration
-    })
-
-def render_notifications():
-    """Render all active notifications."""
-    if not st.session_state.notification_queue:
-        return
-
-    current_time = time.time()
-    remaining_notifications = []
-
-    for notif in st.session_state.notification_queue:
-        if current_time - notif["timestamp"] < notif["duration"]:
-            # Active notification styling
-            bg_color = {
-                "info": "#d1ecf1",
-                "success": "#d4edda",
-                "warning": "#fff3cd",
-                "error": "#f8d7da"
-            }.get(notif["type"], "#d1ecf1")
-
-            text_color = {
-                "info": "#0c5460",
-                "success": "#155724",
-                "warning": "#856404",
-                "error": "#721c24"
-            }.get(notif["type"], "#0c5460")
-
-            icon = {
-                "info": "ℹ️",
-                "success": "✅",
-                "warning": "⚠️",
-                "error": "❌"
-            }.get(notif["type"], "ℹ️")
-
-            st.markdown(
-                f"""
-                <div style="
-                    position: fixed;
-                    bottom: {(remaining_notifications.count('active') * 60) + 20}px;
-                    right: 20px;
-                    padding: 8px 15px;
-                    background-color: {bg_color};
-                    color: {text_color};
-                    border-radius: 4px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-                    z-index: 1000;
-                    animation: slidein 0.3s ease-out;
-                    max-width: 300px;
-                ">
-                    {icon} {notif["message"]}
-                </div>
-                <style>
-                @keyframes slidein {{
-                    from {{ transform: translateX(100%); }}
-                    to {{ transform: translateX(0); }}
-                }}
-                </style>
-                """, 
-                unsafe_allow_html=True
-            )
-            remaining_notifications.append('active')
+    if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
+        updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
+        if is_recent(meta.get("timestamp", "")):
+            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: green;'>Last updated: {updated_time}</span></div>", unsafe_allow_html=True)
         else:
-            remaining_notifications.append('expired')
+            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: orange;'>Last updated: {updated_time} ⬤ Might be outdated</span></div>", unsafe_allow_html=True)
+    else:
+        st.markdown("<div style='font-size: 85%; color: red; margin-bottom: 0.75em;'>⚠️ Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
+        show_input = True
 
-    # Keep only unexpired notifications
-    st.session_state.notification_queue = [
-        notif for i, notif in enumerate(st.session_state.notification_queue)
-        if remaining_notifications[i] == 'active'
-    ]
+    if st.button("🔁 Manually Update Tranco List"):
+        st.session_state["show_input"] = True
+        show_input = True
 
-# --- TRANCO DATA HANDLING ---
-def load_tranco_data():
-    """Load Tranco top domains from a CSV file."""
+    if show_input:
+        st.markdown("[Visit Tranco list site](https://tranco-list.eu/) to get a link")
+        st.text_input("Paste Tranco List URL", key="tranco_url")
+        if st.button("\U0001F4E5 Download Tranco List"):
+            url = st.session_state.get("tranco_url", "")
+            match = re.search(r"/list/([a-zA-Z0-9]{5,})/", url)
+            if not match:
+                st.error("Invalid Tranco URL format.")
+            else:
+                tranco_id = match.group(1)
+                download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
+                try:
+                    response = requests.get(download_url)
+                    if response.status_code == 200:
+                        with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                            f.write(response.content)
+                        save_tranco_meta(tranco_id)
+                        st.success(f"✅ Downloaded Tranco list (ID: {tranco_id})")
+                        st.session_state["show_input"] = False
+                        show_input = False
+                    else:
+                        st.error(f"Failed to download Tranco list: HTTP {response.status_code}")
+                except Exception as e:
+                    st.error(f"Error downloading Tranco list: {e}")
+
+    st.markdown("---")
+    st.subheader("\U0001F553 Recent Publishers")
+    if "history" in st.session_state:
+        recent_keys = list(reversed(list(st.session_state["history"].keys())))[:10]
+        for key in recent_keys:
+            entry = st.session_state["history"][key]
+            label = f"{entry['name']} ({entry['id']})"
+            small_date = f"<div style='font-size: 12px; color: gray;'>Generated: {entry['date']}</div>"
+            if st.button(label, key=key):
+                st.subheader(f"\U0001F4DC Past Results: {entry['name']} ({entry['id']})")
+                st.markdown(small_date, unsafe_allow_html=True)
+                styled = entry['table'].copy()
+                styled["Highlight"] = styled["Tranco Rank"] <= 50000
+                styled_display = styled.drop(columns=["Highlight"])
+                st.dataframe(
+                    styled_display.style.apply(
+                        lambda x: ["background-color: #d4edda" if v else "" for v in styled["Highlight"]],
+                        axis=0
+                    ),
+                    use_container_width=True
+                )
+                st.stop()
+
+# --- TRANCO LOADING ---
+@st.cache_data
+def load_tranco_top_domains():
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        st.warning("Tranco data not found. Please upload it.")
         return {}
-
     try:
         df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
         df = df[df["Rank"] <= TRANCO_THRESHOLD]
         return dict(zip(df["Domain"].str.lower(), df["Rank"]))
     except Exception as e:
-        st.error(f"Error loading Tranco data: {str(e)}")
+        st.error(f"Error reading Tranco CSV: {e}")
         return {}
 
-if "tranco_data" not in st.session_state:
-    st.session_state.tranco_data = load_tranco_data()
+tranco_rankings = load_tranco_top_domains()
 
-# --- ADS.TXT PARSING ---
-def parse_adstxt_line(line):
-    """Parse a single ads.txt line and return its components."""
-    # Remove comments
-    line = line.split('#')[0].strip()
-    if not line:
-        return None
+st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
 
-    parts = [p.strip() for p in line.split(',', 3)]
-    if len(parts) < 3:
-        return None
+# --- INPUT SECTION ---
+if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
+    st.markdown("### 📝 Enter Publisher Details")
 
-    return {
-        'domain': parts[0].lower(),
-        'pub_id': parts[1].strip(),
-        'relationship': parts[2].lower(),
-        'tag': parts[3].strip() if len(parts) > 3 else ''
-    }
+    # Toggle for manual mode
+    manual_mode = st.checkbox("🔀 Use Manual Domains Instead", value=False)
+    
+    # Show standard or manual fields based on toggle
+    if not manual_mode:
+        pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
+        pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
+        manual_domains_input = ""
+    else:
+        st.info("Manual mode active: Paste domains manually. Publisher Domain/Name are hidden.")
+        manual_domains_input = st.text_area("Paste domains manually (comma or newline separated)", height=100)
+        pub_domain = ""
+        pub_name = ""
 
-# --- DOMAIN CHECK FUNCTION ---
-def check_domain(domain, pub_seller_domain, pub_id):
-    """Check a domain's ads.txt and return relevant details."""
-    try:
-        ads_url = f"https://{domain}/ads.txt"
-        ads_response = requests.get(ads_url, timeout=10)
-
-        if ads_response.status_code != 200:
-            return {"error": f"HTTP error: {ads_response.status_code}"}
-
-        ads_lines = ads_response.text.splitlines()
-        parsed_lines = [parse_adstxt_line(line) for line in ads_lines if line.strip()]
-        parsed_lines = [line for line in parsed_lines if line]
-
-        # Check for direct line
-        has_direct = any(
-            line['domain'] == pub_seller_domain and line['relationship'] == 'direct'
-            for line in parsed_lines
-        )
-
-        if not has_direct:
-            return {"error": f"No direct ads.txt line for {pub_seller_domain}"}
-
-        # Check if OMS already buys from this publisher
-        oms_existing = any(
-            "onlinemediasolutions.com" in line['domain'] and
-            line['pub_id'] == pub_id and
-            line['relationship'] == 'direct'
-            for line in parsed_lines
-        )
-
-        if oms_existing:
-            return {"error": "OMS already buys from this publisher"}
-
-        # Owner/Manager check
-        owner_manager_status = "No"
-        if any("ownerdomain" in line.lower() for line in ads_lines):
-            owner_manager_status = "Owner"
-        elif any("managerdomain" in line.lower() for line in ads_lines):
-            owner_manager_status = "Manager"
-
-        domain_rank = st.session_state["tranco_data"].get(domain.lower())
-        if not domain_rank:
-            return {"error": "Domain not in Tranco top list"}
-
-        return {
-            "Domain": domain,
-            "Tranco Rank": domain_rank,
-            "Owner/Manager": owner_manager_status,
-            "Notes": ""
-        }
-    except Exception as error:
-        return {"error": str(error)}
-
-# --- MAIN STREAMLIT INTERFACE ---
-st.set_page_config(page_title="Monetization Opportunities", layout="wide")
-st.title("Monetization Opportunity Finder")
-
-# --- SIDEBAR ---
-st.sidebar.header("Configuration")
-manual_mode = st.sidebar.checkbox("Enable Manual Mode", value=False)
-
-# --- KEYBOARD SHORTCUTS ---
-def register_keyboard_shortcuts():
-    """Setup keyboard shortcuts using JavaScript."""
-    shortcuts_js = """
-    <script>
-    document.addEventListener('keydown', function(e) {
-        // Check if not in an input field, textarea, etc.
-        const activeEl = document.activeElement;
-        const isTextField = activeEl.tagName === 'INPUT' || 
-                          activeEl.tagName === 'TEXTAREA' || 
-                          activeEl.isContentEditable;
-
-        // Alt+S to start scan
-        if (e.altKey && e.key === 's' && !isTextField) {
-            const scanButton = Array.from(document.querySelectorAll('button')).find(
-                button => button.innerText.includes('Find Monetization Opportunities')
-            );
-            if (scanButton) {
-                scanButton.click();
-                e.preventDefault();
-            }
-        }
-
-        // Alt+R to clear and start over
-        if (e.altKey && e.key === 'r' && !isTextField) {
-            const resetButton = Array.from(document.querySelectorAll('button')).find(
-                button => button.innerText.includes('Restart')
-            );
-            if (resetButton) {
-                resetButton.click();
-                e.preventDefault();  
-            }
-        }
-
-        // Alt+E to send email when available
-        if (e.altKey && e.key === 'e' && !isTextField) {
-            const emailButton = Array.from(document.querySelectorAll('button')).find(
-                button => button.innerText.includes('Send Email')
-            );
-            if (emailButton) {
-                emailButton.click();
-                e.preventDefault();
-            }
-        }
-
-        // Alt+D to download CSV when available
-        if (e.altKey && e.key === 'd' && !isTextField) {
-            const downloadButton = Array.from(document.querySelectorAll('button')).find(
-                button => button.innerText.includes('Download Opportunities CSV')
-            );
-            if (downloadButton) {
-                downloadButton.click();
-                e.preventDefault();
-            }
-        }
-    });
-    </script>
-    """
-    st.components.v1.html(shortcuts_js, height=0)
-
-# --- CONTEXTUAL HELP ---
-def setup_contextual_help():
-    """Create a collapsible contextual help panel."""
-    with st.sidebar:
-        st.markdown("### ⌨️ Keyboard Shortcuts")
-        st.markdown("""
-        - **Alt+S**: Start scan
-        - **Alt+R**: Restart
-        - **Alt+E**: Send email
-        - **Alt+D**: Download CSV
-        """)
-
-        st.markdown("### ❓ Contextual Help")
-        help_toggle = st.checkbox("Show contextual help", key="show_help", value=False)
-        if help_toggle:
-            if "current_step" not in st.session_state:
-                st.session_state.current_step = "input"
-
-            # Display help based on current step
-            if st.session_state.current_step == "input":
-                st.info("""
-                **Input Help:**
-                - **Publisher Domain**: The main domain of the publisher.
-                - **Publisher Name**: The name used for reports and emails.
-                - **Publisher ID**: Unique identifier used in ads.txt.
-                - **Example Direct Line**: Sample line from ads.txt showing a direct relationship.
-                """)
-
-            elif st.session_state.current_step == "results":
-                st.info("""
-                **Results Help:**
-                - **Green rows**: High-value opportunities (Tranco rank ≤ 50,000).
-                - **Yellow rows**: Publisher is owner/manager but opportunity exists.
-                - **Domain**: Click on the domain to visit the site.
-                - **Recheck**: Use this to try again if a domain was skipped.
-                """)
-
-            elif st.session_state.current_step == "email":
-                st.info("""
-                **Email Help:**
-                - Enter the username part before @onlinemediasolutions.com.
-                - The email will contain the table with proper formatting.
-                - Highlights (green and yellow) will be preserved in the email.
-                """)
-
-# --- DATAFRAME FORMATTING ---
-def format_dataframe(df):
-    """Format DataFrame with color highlights for better visualization."""
-    styled_df = df.copy()
-
-    if "Highlight" not in styled_df.columns:
-        styled_df["Highlight"] = "none"
-
-    # Highlight logic
-    styled_df.loc[styled_df["Tranco Rank"] <= 50000, "Highlight"] = "high_value"
-    if "Owner/Manager" in styled_df.columns:
-        styled_df.loc[styled_df["Owner/Manager"].isin(["Owner", "Manager"]), "Highlight"] = "owner_manager"
-
-    def highlight_rows(row):
-        value = row["Highlight"]
-        if value == "high_value":
-            return ["background-color: #d4edda"] * len(row)  # Green
-        elif value == "owner_manager":
-            return ["background-color: #fff3cd"] * len(row)  # Yellow
-        else:
-            return [""] * len(row)
-
-    return styled_df.drop(columns=["Highlight"]).style.apply(highlight_rows, axis=1)
-
-# --- RECHECK FUNCTION ---
-def recheck_domain(domain):
-    """Recheck a skipped domain and add it to results if successful."""
-    pub_seller_domain = st.session_state.get("pub_seller_domain", "")
+    pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+else:
+    pub_domain = st.session_state.get("pub_domain", "")
+    pub_name = st.session_state.get("pub_name", "")
     pub_id = st.session_state.get("pub_id", "")
+    sample_direct_line = st.session_state.get("sample_direct_line", "")
+    manual_domains_input = st.session_state.get("manual_domains_input", "")
 
-    if not pub_seller_domain or not pub_id:
-        add_notification("Missing publisher information for recheck.", "error")
-        return
+# --- MAIN FUNCTIONALITY BUTTON ---
+if st.button("🔍 Find Monetization Opportunities"):
+    st.session_state["pub_domain"] = pub_domain
+    st.session_state["pub_name"] = pub_name
+    st.session_state["pub_id"] = pub_id
+    st.session_state["sample_direct_line"] = sample_direct_line
+    st.session_state["manual_domains_input"] = manual_domains_input
 
-    with st.spinner(f"Rechecking {domain}..."):
-        result = check_domain(domain, pub_seller_domain, pub_id)
-        if "error" in result:
-            add_notification(f"Recheck failed: {result['error']}", "error")
-            return
+    if not pub_id or not sample_direct_line:
+        st.error("Publisher ID and Example Direct Line are required.")
+    else:
+        with st.spinner("🔎 Checking domains..."):
+            try:
+                st.session_state.skipped_log = []
+                results = []
+                domains = set()
 
-        # Add result to opportunities table
-        if "opportunities_table" in st.session_state and not st.session_state.opportunities_table.empty:
-            st.session_state.opportunities_table = st.session_state.opportunities_table[
-                st.session_state.opportunities_table["Domain"] != domain
-            ]
-            new_df = pd.DataFrame([result])
-            st.session_state.opportunities_table = pd.concat([st.session_state.opportunities_table, new_df])
-            st.session_state.opportunities_table.sort_values("Tranco Rank", inplace=True)
+                # Check if we have manual domains
+                if manual_domains_input.strip():
+                    manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
+                    domains = {d.strip().lower() for d in manual_lines if d.strip()}
+                else:
+                    # Try sellers.json
+                    sellers_url = f"https://{pub_domain}/sellers.json"
+                    try:
+                        sellers_response = requests.get(sellers_url, timeout=10)
+                        sellers_data = sellers_response.json()
+                        if "sellers" in sellers_data:
+                            domains = {
+                                s.get("domain").lower() for s in sellers_data["sellers"]
+                                if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
+                            }
+                        else:
+                            st.warning("No sellers field in sellers.json. Provide manual domains if needed.")
+                    except Exception:
+                        st.error(f"Invalid sellers.json at {sellers_url}")
 
-            # Remove from skipped log
-            st.session_state.skipped_log = [
-                (d, r) for d, r in st.session_state.skipped_log if d != domain
-            ]
+                if not domains:
+                    st.error("No valid domains found to check.")
+                else:
+                    progress = st.progress(0)
+                    progress_text = st.empty()
+                    for idx, domain in enumerate(domains, start=1):
+                        try:
+                            ads_url = f"https://{domain}/ads.txt"
+                            ads_response = requests.get(ads_url, timeout=10)
+                            ads_lines = ads_response.text.splitlines()
 
-            add_notification(f"Successfully rechecked {domain}", "success")
-            st.experimental_rerun()
-        else:
-            add_notification("No results table to update.", "error")
+                            has_direct = any(sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower()
+                                             for line in ads_lines)
+                            if not has_direct:
+                                st.session_state.skipped_log.append((domain, f"No direct line for publisher"))
+                                continue
 
-# --- MAIN LOGIC CONTINUES HERE ---
-if "opportunities_table" in st.session_state and not st.session_state.opportunities_table.empty:
-    st.subheader(f"📈 Opportunities for {st.session_state.get('pub_name', 'Manual Domains')}")
+                            if any(
+                                "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
+                                for line in ads_lines
+                            ):
+                                st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
+                                continue
 
-    # Display DataFrame
-    styled_df = format_dataframe(st.session_state.opportunities_table)
-    st.dataframe(styled_df, use_container_width=True)
+                            is_oms_buyer = any(
+                                "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
+                                for line in ads_lines
+                            )
 
-    # Download CSV button
-    csv_data = st.session_state.opportunities_table.to_csv(index=False)
-    st.download_button(
-        label="⬇️ Download Opportunities CSV",
-        data=csv_data,
-        file_name="opportunities.csv",
-        mime="text/csv",
-    )
+                            if domain.lower() not in tranco_rankings:
+                                st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                                continue
 
-    # Email section
-    st.markdown("### 📧 Email Results")
-    email_username = st.text_input("Email Username (before @onlinemediasolutions.com):")
-    if st.button("Send Email"):
-        if not email_username.strip():
-            st.error("Please enter a valid email username.")
-        else:
-            st.success("Email sent!")  # Placeholder for email functionality logic
+                            rank = tranco_rankings[domain.lower()]
+                            results.append({
+                                "Domain": domain,
+                                "Tranco Rank": rank,
+                                "OMS Buying": "Yes" if is_oms_buyer else "No"
+                            })
+                            time.sleep(0.1)
 
-# --- SKIPPED DOMAINS ---
-if st.session_state.skipped_log:
-    with st.expander("⚠️ Skipped Domains", expanded=False):
-        st.markdown("### Skipped Domains")
-        for idx, (domain, reason) in enumerate(st.session_state.skipped_log):
-            col1, col2 = st.columns([3, 1])
-            col1.write(f"{domain} - {reason}")
-            if col2.button("Recheck", key=f"recheck_{idx}"):
-                recheck_domain(domain)
+                        except Exception as e:
+                            st.session_state.skipped_log.append((domain, f"Request error: {e}"))
 
-# --- NOTIFICATIONS ---
-render_notifications()
+                        progress.progress(idx / len(domains))
+                        progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
+
+                    df_results = pd.DataFrame(results)
+                    df_results.sort_values("Tranco Rank", inplace=True)
+                    st.session_state.opportunities_table = df_results
+                    key = f"{pub_name or 'manual'}_{pub_id}"
+                    st.session_state.setdefault("history", {})
+                    st.session_state["history"][key] = {
+                        "name": pub_name or "Manual Domains",
+                        "id": pub_id,
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "table": df_results.copy()
+                    }
+                    st.success("✅ Analysis complete")
+                    st.balloons()
+
+            except Exception as e:
+                st.error(f"Error while processing: {e}")
 
 # --- RESULTS DISPLAY ---
-if "opportunities_table" in st.session_state and not st.session_state.opportunities_table.empty:
-    st.session_state.current_step = "results"
-    st.subheader(f"📊 Opportunities for {st.session_state.get('pub_name', 'Manual Domains')}")
+st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
-    # Display success stats
+if not st.session_state.opportunities_table.empty:
+    st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
     oms_no = total - oms_yes
-    skipped_count = len(st.session_state.skipped_log)
+    skipped = len(st.session_state.skipped_log)
+    
+    st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
-    # Summary stats
-    stats_cols = st.columns([1, 1, 1])
-    stats_cols[0].metric("Total Domains Scanned", f"{total + skipped_count}")
-    stats_cols[1].metric("Opportunities Found", f"{total}")
-    stats_cols[2].metric("Skipped Domains", f"{skipped_count}")
-
-    # Legend for color coding
-    st.markdown("""
-    <div style="margin-bottom: 10px; padding: 8px; border-radius: 4px; background-color: #f8f9fa;">
-        <span style="font-weight: bold;">Color Legend:</span>
-        <span style="background-color: #d4edda; padding: 2px 5px; margin: 0 5px; border-radius: 3px;">Green</span> = High-value opportunities (Tranco rank ≤ 50,000)
-        <span style="background-color: #fff3cd; padding: 2px 5px; margin: 0 5px; border-radius: 3px;">Yellow</span> = Publisher is owner/manager
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Display formatted table
-    styled_df = format_dataframe(st.session_state.opportunities_table)
-    st.dataframe(styled_df, use_container_width=True)
-
-    # Notes section
-    st.subheader("📝 Domain Notes & Tags")
-    st.markdown("Add notes or tags to domains (e.g., 'contacted', 'low CPM', 'priority'). Changes are saved automatically.")
-    for idx, row in st.session_state.opportunities_table.iterrows():
-        domain = row['Domain']
-
-        # Create unique key for each domain's notes
-        note_key = f"note_{domain.replace('.', '_')}"
-        if note_key not in st.session_state:
-            st.session_state[note_key] = row.get('Notes', '')
-
-        # Display notes input
-        cols = st.columns([2, 5])
-        cols[0].markdown(f"**{domain}**")
-        updated_note = cols[1].text_input(
-            "Note",
-            value=st.session_state[note_key],
-            key=f"input_{note_key}",
-            label_visibility="collapsed"
-        )
-
-        # Update notes in session state and table
-        if updated_note != st.session_state[note_key]:
-            st.session_state[note_key] = updated_note
-            st.session_state.opportunities_table.at[idx, 'Notes'] = updated_note
-            if "history" in st.session_state:
-                key = f"{st.session_state.get('pub_name', 'manual')}_{st.session_state.get('pub_id', '')}"
-                if key in st.session_state["history"]:
-                    st.session_state["history"][key]["table"].at[idx, 'Notes'] = updated_note
-
-    # Download CSV functionality
-    @st.cache_data
-    def convert_df_to_csv(df):
-        return df.to_csv(index=False)
-
-    csv_data = convert_df_to_csv(st.session_state.opportunities_table)
-    col1, col2 = st.columns([1, 1])
-
-    col1.download_button(
-        "⬇️ Download Opportunities CSV",
-        data=csv_data,
-        file_name=f"opportunities_{st.session_state.get('pub_id', '')}_{datetime.now().strftime('%Y%m%d')}.csv",
-        mime="text/csv",
+    styled_df = st.session_state.opportunities_table.copy()
+    styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
+    styled_df_display = styled_df.drop(columns=["Highlight"])
+    
+    st.dataframe(
+        styled_df_display.style.apply(
+            lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
+            axis=0
+        ),
+        use_container_width=True
     )
 
-    # Email functionality
-    st.markdown("### 📧 Email Results")
+    csv_data = st.session_state.opportunities_table.to_csv(index=False)
+    st.download_button(
+        "⬇️ Download Opportunities CSV",
+        data=csv_data,
+        file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
+# --- EMAIL SECTION ---
+if not st.session_state.opportunities_table.empty:
+    def sanitize_header(text):
+        text = unicodedata.normalize("NFKD", text)
+        text = re.sub(r'[^ -~]', '', text)
+        return text.strip().replace("\r", "").replace("\n", "")
+
+    st.markdown("### 📧 Email This List")
+    st.markdown("<label>Email Address</label>", unsafe_allow_html=True)
     email_cols = st.columns([3, 5])
-    email_username = email_cols[0].text_input(
-        "Email Address",
-        placeholder="e.g. johnsmith",
-        label_visibility="collapsed",
-        key="email_username"
+    email_local_part = email_cols[0].text_input(
+        "", placeholder="e.g. shirab", label_visibility="collapsed"
     )
     email_cols[1].markdown(
         "<div style='margin-top: 0.6em; font-size: 16px;'>@onlinemediasolutions.com</div>",
@@ -505,240 +303,89 @@ if "opportunities_table" in st.session_state and not st.session_state.opportunit
     )
 
     if st.button("Send Email"):
-        if not email_username.strip():
-            st.error("Please enter a valid email username.")
-            add_notification("Missing email username", "error")
+        if not email_local_part.strip():
+            st.error("Please enter a valid username before sending the email.")
         else:
             try:
-                if not hasattr(st, "secrets") or "EMAIL_ADDRESS" not in st.secrets or "EMAIL_PASSWORD" not in st.secrets:
-                    st.error("Email configuration missing. Please check your Streamlit secrets.")
-                    add_notification("Email configuration missing", "error")
-                else:
-                    # Email setup
-                    full_email = f"{email_username.strip()}@onlinemediasolutions.com"
-                    from_email = st.secrets["EMAIL_ADDRESS"]
-                    email_password = st.secrets["EMAIL_PASSWORD"]
+                full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
+                from_email = st.secrets["EMAIL_ADDRESS"]
+                email_password = st.secrets["EMAIL_PASSWORD"]
 
-                    msg = EmailMessage()
-                    msg["Subject"] = f"Monetization Opportunities for {st.session_state.get('pub_name', 'Manual Domains')}"
-                    msg["From"] = from_email.strip()
-                    msg["To"] = full_email.strip()
+                subject_name = sanitize_header(pub_name or "Manual Domains")
+                subject_id = sanitize_header(pub_id or "NoID")
+                msg = EmailMessage()
+                msg["Subject"] = f"{subject_name} ({subject_id}) opportunities"
+                msg["From"] = from_email.strip()
+                msg["To"] = full_email.strip()
 
-                    # Generate HTML table for email body
-                    styled_rows = ""
-                    for _, row in st.session_state.opportunities_table.iterrows():
-                        bg_color = "#FFFFFF"
-                        if row["Tranco Rank"] <= 50000:
-                            bg_color = "#d4edda"  # Green
-                        elif row["Owner/Manager"] in ["Owner", "Manager"]:
-                            bg_color = "#fff3cd"  # Yellow
+                html_table = st.session_state.opportunities_table.to_html(
+                    index=False, border=1, justify='center', classes='styled-table'
+                )
+                body = f"""
+<html>
+  <head>
+    <style>
+      * {{ font-family: Arial, sans-serif; font-size: 14px; color: #333; }}
+      .styled-table {{
+        border-collapse: collapse;
+        margin: 10px 0;
+        font-size: 14px;
+        min-width: 400px;
+        border: 1px solid #ddd;
+      }}
+      .styled-table th, .styled-table td {{
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }}
+      .styled-table th {{
+        background-color: #f2f2f2;
+        font-weight: bold;
+      }}
+    </style>
+  </head>
+  <body>
+    <p>Hi there!</p>
+    <p>Here is the list of opportunities for <strong>{subject_name}</strong> ({subject_id}):</p>
+    {html_table}
+    <p>Warm regards,<br/>Automation bot</p>
+  </body>
+</html>
+"""
+                msg.set_content("This email requires an HTML-capable email client.")
+                msg.add_alternative(body, subtype="html")
 
-                        notes = row.get("Notes", "")
-                        styled_rows += f"""
-                        <tr style="background-color: {bg_color}">
-                            <td><a href="https://{row['Domain']}" target="_blank">{row['Domain']}</a></td>
-                            <td>{row['Tranco Rank']}</td>
-                            <td>{row['Owner/Manager']}</td>
-                            <td>{row['OMS Buying']}</td>
-                            <td>{notes}</td>
-                        </tr>"""
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                    smtp.login(from_email, email_password)
+                    smtp.send_message(msg)
 
-                    html_table = f"""
-                    <table border="1" cellpadding="5" cellspacing="0" style="font-family:Arial; font-size:14px; border-collapse:collapse;">
-                        <thead style="background-color:#f2f2f2;">
-                            <tr>
-                                <th>Domain</th>
-                                <th>Tranco Rank</th>
-                                <th>Owner/Manager</th>
-                                <th>OMS Buying</th>
-                                <th>Notes</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {styled_rows}
-                        </tbody>
-                    </table>"""
-
-                    msg.set_content(f"Please find the monetization opportunities attached.")
-                    msg.add_alternative(f"<html><body>{html_table}</body></html>", subtype="html")
-
-                    # Send email
-                    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-                        server.login(from_email, email_password)
-                        server.send_message(msg)
-
-                    st.success(f"Email sent to {full_email}!")
-                    add_notification(f"Email successfully sent to {full_email}", "success")
+                st.success("Email sent successfully!")
+                st.info("✅ Want to analyze another publisher? Update the fields above or refresh the page.")
             except Exception as e:
-                st.error(f"Error sending email: {str(e)}")
-                add_notification("Error occurred while sending email", "error")
+                st.error(f"Failed to send email: {e}")
 
-# --- SKIPPED DOMAINS ---
-if "skipped_log" in st.session_state and st.session_state.skipped_log:
-    with st.expander("⚠️ Skipped Domains", expanded=False):
-        st.markdown("These domains were skipped during processing. You can recheck them individually.")
+# --- START OVER BUTTON ---
+if st.button("🔁 Start Over"):
+    history_backup = st.session_state.get("history", {}).copy()
+    for key in list(st.session_state.keys()):
+        if key != "history":
+            del st.session_state[key]
+    st.session_state["history"] = history_backup
+    st.rerun()
+
+# --- SKIPPED DOMAINS REPORT ---
+st.session_state.setdefault("skipped_log", [])
+
+if st.session_state.skipped_log:
+    with st.expander("⛔ Skipped Domains", expanded=False):
+        st.subheader("⛔ Skipped Domains")
         skipped_df = pd.DataFrame(st.session_state.skipped_log, columns=["Domain", "Reason"])
-        
-        for idx, (domain, reason) in enumerate(st.session_state.skipped_log):
-            col1, col2, col3 = st.columns([5, 3, 2])
-            col1.markdown(f"**{domain}**")
-            col2.markdown(f"_{reason}_")
-            if col3.button("Recheck", key=f"recheck_{idx}"):
-                recheck_domain(domain)
+        st.dataframe(skipped_df, use_container_width=True)
 
-        # Download skipped domains as CSV
         skipped_csv = skipped_df.to_csv(index=False)
         st.download_button(
             "⬇️ Download Skipped Domains CSV",
             data=skipped_csv,
-            file_name=f"skipped_domains_{st.session_state.get('pub_id', '')}_{datetime.now().strftime('%Y%m%d')}.csv",
+            file_name="skipped_domains.csv",
             mime="text/csv"
         )
-
-# --- RESTART BUTTON ---
-if st.button("Restart"):
-    reset_session()
-    st.experimental_rerun()
-
-# --- NOTIFICATIONS ---
-render_notifications()
-
-# --- HISTORY MANAGEMENT ---
-def save_to_history():
-    """Save the current session's data to the history for future reference."""
-    if "pub_id" not in st.session_state or not st.session_state["pub_id"].strip():
-        add_notification("Cannot save to history. Missing Publisher ID.", "error")
-        return
-
-    pub_id = st.session_state["pub_id"].strip()
-    pub_name = st.session_state.get("pub_name", "Unknown Publisher").strip()
-    key = f"{pub_name}_{pub_id}"
-    if key not in st.session_state.history:
-        st.session_state.history[key] = {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "table": st.session_state.opportunities_table.copy(),
-            "skipped": list(st.session_state.skipped_log),
-        }
-        add_notification(f"Session saved for {pub_name} (ID: {pub_id})", "success")
-    else:
-        add_notification("Session already exists in history. Consider renaming Publisher ID.", "warning")
-
-
-def load_from_history(key):
-    """Load a session from the history based on a unique key."""
-    if key not in st.session_state.history:
-        add_notification("Requested session not found in history.", "error")
-        return
-
-    session = st.session_state.history[key]
-    st.session_state.opportunities_table = session["table"].copy()
-    st.session_state.skipped_log = list(session["skipped"])
-    st.session_state.pub_name, st.session_state.pub_id = key.split("_", 1)
-    add_notification(f"Session {key} loaded successfully.", "success")
-    st.experimental_rerun()
-
-
-# --- HISTORY DISPLAY ---
-def display_history():
-    """Display all sessions saved in history."""
-    st.sidebar.markdown("### 📜 History")
-    if not st.session_state.history:
-        st.sidebar.info("No saved sessions yet.")
-        return
-
-    for key, session in st.session_state.history.items():
-        pub_name, pub_id = key.split("_", 1)
-        timestamp = session["timestamp"]
-        table_size = len(session["table"])
-        skipped_size = len(session["skipped"])
-
-        with st.sidebar.expander(f"{pub_name} (ID: {pub_id})", expanded=False):
-            st.markdown(f"**Date:** {timestamp}")
-            st.markdown(f"**Opportunities:** {table_size}")
-            st.markdown(f"**Skipped Domains:** {skipped_size}")
-            load_button_key = f"load_{key}"
-            if st.button("Load Session", key=load_button_key):
-                load_from_history(key)
-
-
-# --- SIDEBAR ---
-st.sidebar.header("Navigation")
-display_history()
-
-if st.sidebar.button("Save Current Session"):
-    save_to_history()
-
-if st.sidebar.button("Clear All History"):
-    if st.session_state.history:
-        st.session_state.history.clear()
-        add_notification("All history cleared successfully.", "success")
-    else:
-        add_notification("No history to clear.", "info")
-
-
-# --- MAIN LOGIC ---
-def main_logic():
-    """Main processing logic for monetization opportunity finder."""
-    if st.session_state.manual_mode:
-        if not st.session_state.get("manual_domains", "").strip():
-            st.error("Please enter domains in manual mode.")
-            add_notification("No domains provided in manual mode.", "error")
-            st.stop()
-
-        domains = [
-            domain.strip() for domain in re.split(r'[,\n]', st.session_state["manual_domains"]) if domain.strip()
-        ]
-    else:
-        required_fields = ["pub_domain", "pub_name", "pub_id", "sample_ads_line"]
-        for field in required_fields:
-            if not st.session_state.get(field, "").strip():
-                st.error("All fields are required in non-manual mode.")
-                add_notification("Missing required fields.", "error")
-                st.stop()
-
-        domains = [st.session_state["pub_domain"]]
-
-    # Processing domains
-    results = []
-    skipped = []
-    for domain in domains:
-        with st.spinner(f"Processing {domain}..."):
-            result = check_domain(domain, st.session_state["pub_domain"], st.session_state["pub_id"])
-            if "error" in result:
-                skipped.append((domain, result["error"]))
-            else:
-                results.append(result)
-
-    # Update session state
-    if results:
-        if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
-            st.session_state.opportunities_table = pd.DataFrame(results)
-        else:
-            new_results_df = pd.DataFrame(results)
-            st.session_state.opportunities_table = pd.concat([st.session_state.opportunities_table, new_results_df])
-
-    if skipped:
-        st.session_state.skipped_log.extend(skipped)
-
-    # Sort results by Tranco rank
-    if not st.session_state.opportunities_table.empty:
-        st.session_state.opportunities_table.sort_values("Tranco Rank", inplace=True)
-
-    # Display results
-    if results:
-        st.success(f"Found {len(results)} new opportunities!")
-    else:
-        st.warning("No opportunities found.")
-
-    if skipped:
-        st.warning(f"{len(skipped)} domains were skipped. You can recheck them from the 'Skipped Domains' section.")
-
-
-# Run the main processing logic if the user clicks the "Find Opportunities" button
-if st.button("Find Opportunities"):
-    main_logic()
-
-# Render notifications
-render_notifications()
-
-
