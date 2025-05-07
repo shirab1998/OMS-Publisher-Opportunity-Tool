@@ -253,8 +253,12 @@ if st.button("🔍 Find Monetization Opportunities"):
                             })
                             time.sleep(0.1)
 
+                        except requests.exceptions.SSLError:
+                            st.session_state.skipped_log.append((domain, "⚠️ SSL Error: The site has an expired or invalid HTTPS certificate."))
+                        except requests.exceptions.RequestException as e:
+                            st.session_state.skipped_log.append((domain, f"⚠️ Connection Error: {e}"))
                         except Exception as e:
-                            st.session_state.skipped_log.append((domain, f"Request error: {e}"))
+                            st.session_state.skipped_log.append((domain, f"⚠️ Unexpected Error: {str(e)}"))
 
                         progress.progress(idx / len(domains))
                         progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
@@ -306,6 +310,9 @@ if not st.session_state.opportunities_table.empty:
         data=csv_data,
         file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
         mime="text/csv"
+    st.markdown("### 🗒️ Add a Comment (Optional)")
+    comment_text = st.text_area("Include a note with the email", key="comment_text")
+
     )
 # --- EMAIL SECTION ---
 if not st.session_state.opportunities_table.empty:
@@ -371,7 +378,9 @@ if not st.session_state.opportunities_table.empty:
     <p>Hi there!</p>
     <p>Here is the list of opportunities for <strong>{subject_name}</strong> ({subject_id}):</p>
     {html_table}
+    {f"<p><strong>Adding here your manual comments:</strong><br>{st.session_state.get('comment_text', '').strip()}</p>" if st.session_state.get('comment_text', '').strip() else ""}
     <p>Warm regards,<br/>Automation bot</p>
+
   </body>
 </html>
 """
