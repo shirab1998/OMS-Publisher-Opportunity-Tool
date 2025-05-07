@@ -309,15 +309,16 @@ if not st.session_state.opportunities_table.empty:
     comment_text = st.text_area("Write a message to include in the email (optional)", key="comment_text")
 
     csv_data = st.session_state.opportunities_table.to_csv(index=False)
-    st.download_button(
-        "⬇️ Download Opportunities CSV",
-        data=csv_data,
-        file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
-        mime="text/csv"
-    st.markdown("### 🗒️ Add a Comment (Optional)")
-    comment_text = st.text_area("Include a note with the email", key="comment_text")
+st.download_button(
+    "⬇️ Download Opportunities CSV",
+    data=csv_data,
+    file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
+    mime="text/csv"
+)
 
-    )
+st.markdown("### 🗒️ Add a Comment (Optional)")
+comment_text = st.text_area("Include a note with the email", key="comment_text")
+ 
 # --- EMAIL SECTION ---
 if not st.session_state.opportunities_table.empty:
     def sanitize_header(text):
