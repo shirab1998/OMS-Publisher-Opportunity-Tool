@@ -289,43 +289,40 @@ if st.button("🔍 Find Monetization Opportunities"):
 ###
             except Exception as e:
                 st.error(f"Error while processing: {e}")
+                st.session_state.skipped_log.append(("general", f"Processing error: {e}"))
 
-            # --- Owner/Manager Detection ---
-            try:
-                owner_role = "no"  # Default to "no" if neither owner nor manager is found
-                pub_domain_lower = pub_domain.lower()  # Convert publisher domain to lowercase
-                found_owner = any("ownerdomain" in l.lower() for l in ads_lines)  # Check for "ownerdomain"
-                found_manager = any("managerdomain" in l.lower() for l in ads_lines)  # Check for "managerdomain"
+# --- Owner/Manager Detection (outside the try) ---
+owner_role = "no"
+try:
+    pub_domain_lower = pub_domain.lower()
+    found_owner = any("ownerdomain" in l.lower() for l in ads_lines)
+    found_manager = any("managerdomain" in l.lower() for l in ads_lines)
 
-                # Iterate through ads.txt lines to match owner/manager roles
-                for l in ads_lines:
-                    line_lower = l.lower()
-                    if "ownerdomain" in line_lower and pub_domain_lower in line_lower:
-                        owner_role = "owner"  # Found the publisher as an owner
-                        break
-                    elif "managerdomain" in line_lower and pub_domain_lower in line_lower:
-                        owner_role = "manager"  # Found the publisher as a manager
-                        break
-                else:
-                    # If neither owner nor manager is explicitly matched, check indirect cases
-                    if found_owner and not found_manager:
-                        owner_role = "managerdomain not indicated"
-                    elif found_manager and not found_owner:
-                        owner_role = "ownerdomain not indicated"
+    for l in ads_lines:
+        line_lower = l.lower()
+        if "ownerdomain" in line_lower and pub_domain_lower in line_lower:
+            owner_role = "owner"
+            break
+        elif "managerdomain" in line_lower and pub_domain_lower in line_lower:
+            owner_role = "manager"
+            break
+    else:
+        if found_owner and not found_manager:
+            owner_role = "managerdomain not indicated"
+        elif found_manager and not found_owner:
+            owner_role = "ownerdomain not indicated"
 
-                # Append the results row
-                row = {
-                    "Domain": domain,
-                    "Tranco Rank": tranco_rankings.get(domain.lower(), "N/A"),
-                    "Owner/Manager": owner_role,
-                    "OMS Buying": "Yes" if is_oms_buyer else "No",
-                    "Comment": ""
-                }
-                results.append(row)
-                time.sleep(0.1)  # Short delay to avoid overloading requests
+    row = {
+        "Domain": domain,
+        "Tranco Rank": tranco_rankings.get(domain.lower(), "N/A"),
+        "Owner/Manager": owner_role,
+        "OMS Buying": "Yes" if is_oms_buyer else "No",
+        "Comment": ""
+    }
+    results.append(row)
 
-            except Exception as e:
-                st.session_state.skipped_log.append((domain, f"Request error during Owner/Manager detection: {e}"))
+except Exception as e:
+    st.session_state.skipped_log.append((domain, f"Request error during Owner/Manager detection: {e}"))
 
             # Update progress
             progress.progress(idx / len(domains))
@@ -352,6 +349,7 @@ if st.button("🔍 Find Monetization Opportunities"):
 
     except Exception as e:
         st.error(f"Error while processing: {e}")
+    
 # --- RESULTS DISPLAY ---
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
