@@ -421,23 +421,25 @@ if not st.session_state.opportunities_table.empty:
 
 # --- START OVER BUTTON ---
 if st.button("🔁 Start Over"):
+    # Keep recent publishers
     history_backup = st.session_state.get("history", {}).copy()
 
-    # Clear all session state
-    st.session_state.clear()
+    # Explicitly clear known input keys (must match widget keys)
+    keys_to_clear = [
+        "pub_domain", "pub_name", "pub_id", "sample_direct_line",
+        "manual_domains_input", "sellersjson_input", "comment_text", "mode"
+    ]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
 
-    # Restore recent publishers
+    # Reset output
+    st.session_state["opportunities_table"] = pd.DataFrame()
+    st.session_state["skipped_log"] = []
     st.session_state["history"] = history_backup
 
-    # Explicitly reset relevant input fields
-    for field in [
-        "pub_domain", "pub_name", "pub_id", "sample_direct_line",
-        "manual_domains_input", "sellersjson_input", "comment_text",
-        "opportunities_table", "show_input", "mode"
-    ]:
-        st.session_state[field] = "" if field != "opportunities_table" else pd.DataFrame()
-
     st.rerun()
+
     
 # --- SKIPPED DOMAINS REPORT ---
 st.session_state.setdefault("skipped_log", [])
