@@ -136,31 +136,26 @@ sellersjson_input = ""
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    manual_mode = st.checkbox("🔀 Use Manual Domains Instead", value=False)
-    sellersjson_mode = st.checkbox("📄 Use Manual sellers.json Instead", value=False)
+    mode = st.radio("Select Input Mode", ["Live (from domain)", "Manual Domains", "Paste sellers.json"])
 
 # Handle invalid dual-mode selection
-    if manual_mode and sellersjson_mode:
-        st.error("❌ Please select only one manual mode (Manual Domains OR Manual sellers.json).")
-        pub_domain = pub_name = manual_domains_input = sellersjson_input = ""
-    else:
-        if not manual_mode and not sellersjson_mode:
-            pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
-            pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
-            manual_domains_input = ""
-            sellersjson_input = ""
-        elif manual_mode:
-            st.info("Manual Domains Mode: Paste domains manually. Publisher Domain/Name are hidden.")
-            manual_domains_input = st.text_area("Paste domains manually (comma or newline separated)", height=100)
-            pub_domain = ""
-            pub_name = ""
-            sellersjson_input = ""
-        elif sellersjson_mode:
-            st.info("Manual sellers.json Mode: Paste JSON content. Publisher Domain/Name are hidden.")
-            sellersjson_input = st.text_area("Paste sellers.json content", height=200)
-            pub_domain = ""
-            pub_name = ""
-            manual_domains_input = ""
+    if mode == "Live (from domain)":
+        pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
+        pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
+        manual_domains_input = ""
+        sellersjson_input = ""
+    elif mode == "Manual Domains":
+        st.info("Manual Domains Mode: Paste domains manually.")
+        manual_domains_input = st.text_area("Paste domains manually (comma or newline separated)", height=100)
+        pub_domain = ""
+        pub_name = ""
+        sellersjson_input = ""
+    elif mode == "Paste sellers.json":
+        st.info("Paste sellers.json content.")
+        sellersjson_input = st.text_area("Paste sellers.json content", height=200)
+        pub_domain = ""
+        pub_name = ""
+        manual_domains_input = ""
 
         pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
         sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
@@ -172,6 +167,8 @@ if st.button("🔍 Find Monetization Opportunities"):
     st.session_state["pub_id"] = pub_id
     st.session_state["sample_direct_line"] = sample_direct_line
     st.session_state["manual_domains_input"] = manual_domains_input
+    st.session_state["sellersjson_input"] = sellersjson_input
+    st.session_state["mode"] = mode
 
     if not pub_id or not sample_direct_line:
         st.error("Publisher ID and Example Direct Line are required.")
@@ -182,11 +179,12 @@ if st.button("🔍 Find Monetization Opportunities"):
                 results = []
                 domains = set()
 
-                # Check if we have manual domains
-                if manual_domains_input.strip():
+                # --- DOMAIN EXTRACTION LOGIC BY MODE ---
+                if mode == "Manual Domains":
                     manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
                     domains = {d.strip().lower() for d in manual_lines if d.strip()}
-                elif sellersjson_input.strip():
+
+                elif mode == "Paste sellers.json":
                     try:
                         data = json.loads(sellersjson_input)
                         domains = {
@@ -196,88 +194,99 @@ if st.button("🔍 Find Monetization Opportunities"):
                         }
                     except Exception as e:
                         st.error(f"Failed to parse sellers.json: {e}")
-                else:
-                    # Try sellers.json
+                        st.stop()
+
+                else:  # Live mode
                     sellers_url = f"https://{pub_domain}/sellers.json"
                     try:
                         sellers_response = requests.get(sellers_url, timeout=10)
                         sellers_data = sellers_response.json()
                         if "sellers" in sellers_data:
                             domains = {
-                                s.get("domain").lower() for s in sellers_data["sellers"]
+                                s.get("domain").lower()
+                                for s in sellers_data["sellers"]
                                 if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
                             }
                         else:
                             st.warning("No sellers field in sellers.json. Provide manual domains if needed.")
                     except Exception:
                         st.error(f"Invalid sellers.json at {sellers_url}")
+                        st.stop()
 
                 if not domains:
                     st.error("No valid domains found to check.")
-                else:
-                    progress = st.progress(0)
-                    progress_text = st.empty()
-                    for idx, domain in enumerate(domains, start=1):
-                        try:
-                            ads_url = f"https://{domain}/ads.txt"
-                            ads_response = requests.get(ads_url, timeout=10)
-                            ads_lines = ads_response.text.splitlines()
+                    st.stop()
 
-                            has_direct = any(sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower()
-                                             for line in ads_lines)
-                            if not has_direct:
-                                st.session_state.skipped_log.append((domain, f"No direct line for publisher"))
-                                continue
+                # --- ANALYSIS ---
+                progress = st.progress(0)
+                progress_text = st.empty()
 
-                            if any(
-                                "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
-                                for line in ads_lines
-                            ):
-                                st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
-                                continue
+                for idx, domain in enumerate(domains, start=1):
+                    try:
+                        ads_url = f"https://{domain}/ads.txt"
+                        ads_response = requests.get(ads_url, timeout=10)
+                        ads_lines = ads_response.text.splitlines()
 
-                            is_oms_buyer = any(
-                                "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
-                                for line in ads_lines
-                            )
+                        has_direct = any(
+                            sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower()
+                            for line in ads_lines
+                        )
+                        if not has_direct:
+                            st.session_state.skipped_log.append((domain, "No direct line for publisher"))
+                            continue
 
-                            if domain.lower() not in tranco_rankings:
-                                st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
-                                continue
+                        if any(
+                            "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
+                            for line in ads_lines
+                        ):
+                            st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
+                            continue
 
-                            rank = tranco_rankings[domain.lower()]
-                            results.append({
-                                "Domain": domain,
-                                "Tranco Rank": rank,
-                                "OMS Buying": "Yes" if is_oms_buyer else "No"
-                            })
-                            time.sleep(0.1)
+                        is_oms_buyer = any(
+                            "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
+                            for line in ads_lines
+                        )
 
-                        except requests.exceptions.SSLError:
-                            st.session_state.skipped_log.append((domain, "⚠️ SSL Error: The site has an expired or invalid HTTPS certificate."))
-                        except requests.exceptions.RequestException as e:
-                            st.session_state.skipped_log.append((domain, f"⚠️ Connection Error: {e}"))
-                        except Exception as e:
-                            st.session_state.skipped_log.append((domain, f"⚠️ Unexpected Error: {str(e)}"))
+                        if domain.lower() not in tranco_rankings:
+                            st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                            continue
 
-                        progress.progress(idx / len(domains))
-                        progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
+                        rank = tranco_rankings[domain.lower()]
+                        results.append({
+                            "Domain": domain,
+                            "Tranco Rank": rank,
+                            "OMS Buying": "Yes" if is_oms_buyer else "No"
+                        })
+                        time.sleep(0.1)
 
-                    df_results = pd.DataFrame(results)
-                    df_results.sort_values("Tranco Rank", inplace=True)
-                    st.session_state.opportunities_table = df_results
-                    key = f"{pub_name or 'manual'}_{pub_id}"
-                    st.session_state.setdefault("history", {})
-                    st.session_state["history"][key] = {
-                        "name": pub_name or "Manual Domains",
-                        "id": pub_id,
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "table": df_results.copy()
-                    }
-                    progress.empty()
-                    progress_text.empty()
-                    st.success("✅ Analysis complete")
-                    st.balloons()
+                    except requests.exceptions.SSLError:
+                        st.session_state.skipped_log.append((domain, "⚠️ SSL Error: The site has an expired or invalid HTTPS certificate."))
+                    except requests.exceptions.RequestException as e:
+                        st.session_state.skipped_log.append((domain, f"⚠️ Connection Error: {e}"))
+                    except Exception as e:
+                        st.session_state.skipped_log.append((domain, f"⚠️ Unexpected Error: {str(e)}"))
+
+                    progress.progress(idx / len(domains))
+                    progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
+
+                # --- SAVE RESULTS TO SESSION ---
+                df_results = pd.DataFrame(results)
+                df_results.sort_values("Tranco Rank", inplace=True)
+                st.session_state.opportunities_table = df_results
+
+                key = f"{(pub_name or 'Manual')}_{pub_id}"
+                st.session_state.setdefault("history", {})
+                st.session_state["history"][key] = {
+                    "name": pub_name or "Manual Domains",
+                    "id": pub_id,
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "table": df_results.copy()
+                }
+
+                progress.empty()
+                progress_text.empty()
+                st.success("✅ Analysis complete")
+                st.balloons()
 
             except Exception as e:
                 st.error(f"Error while processing: {e}")
@@ -286,6 +295,7 @@ if st.button("🔍 Find Monetization Opportunities"):
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
 if not st.session_state.opportunities_table.empty:
+    
     st.subheader(f"📈 Opportunities for {pub_name if pub_name else 'Manual Domains'} ({pub_id if pub_id else 'No ID'})")
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
@@ -305,10 +315,7 @@ if not st.session_state.opportunities_table.empty:
         ),
         use_container_width=True
     )
- # Optional Comment + CSV Export + Email UI
-st.markdown("### 🗒️ Optional Comment for Email")
-comment_text = st.text_area("Write a message to include in the email (optional)", key="comment_text")
-
+    
 csv_data = st.session_state.opportunities_table.to_csv(index=False)
 
 st.download_button(
@@ -317,6 +324,10 @@ st.download_button(
     file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
     mime="text/csv"
 )
+ # Optional Comment + CSV Export + Email UI
+st.markdown("### 🗒️ Optional Comment for Email")
+comment_text = st.text_area("Write a message to include in the email (optional)", key="comment_text")
+
 
  
 # --- EMAIL SECTION ---
@@ -337,7 +348,6 @@ if not st.session_state.opportunities_table.empty:
         unsafe_allow_html=True
     )
     comment_text = st.session_state.get("comment_text", "").strip()
-
     if st.button("Send Email"):
         if not email_local_part.strip():
             st.error("Please enter a valid username before sending the email.")
