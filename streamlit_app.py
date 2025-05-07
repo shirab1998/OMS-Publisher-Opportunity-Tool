@@ -151,6 +151,26 @@ else:
     pub_id = st.session_state.get("pub_id", "")
     sample_direct_line = st.session_state.get("sample_direct_line", "")
     manual_domains_input = st.session_state.get("manual_domains_input", "")
+    
+    sellersjson_mode = st.checkbox("📄 Use Manual sellers.json Instead", value=False)
+# Show standard or manual fields based on toggle
+    if not manual_mode and not sellersjson_mode:
+        pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
+        pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
+        manual_domains_input = ""
+        sellersjson_input = ""
+    elif manual_mode:
+        st.info("Manual mode active: Paste domains manually. Publisher Domain/Name are hidden.")
+        manual_domains_input = st.text_area("Paste domains manually (comma or newline separated)", height=100)
+        pub_domain = ""
+        pub_name = ""
+        sellersjson_input = ""
+    elif sellersjson_mode:
+        st.info("Manual sellers.json mode active: Paste sellers.json content. Publisher Domain/Name are hidden.")
+        sellersjson_input = st.text_area("Paste sellers.json content", height=200)
+        pub_domain = ""
+        pub_name = ""
+        manual_domains_input = ""
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
@@ -173,6 +193,16 @@ if st.button("🔍 Find Monetization Opportunities"):
                 if manual_domains_input.strip():
                     manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
                     domains = {d.strip().lower() for d in manual_lines if d.strip()}
+                elif sellersjson_input.strip():
+                    try:
+                        data = json.loads(sellersjson_input)
+                        domains = {
+                            s.get("domain").strip().lower()
+                            for s in data.get("sellers", [])
+                            if s.get("domain")
+                        }
+                    except Exception as e:
+                        st.error(f"Failed to parse sellers.json: {e}")
                 else:
                     # Try sellers.json
                     sellers_url = f"https://{pub_domain}/sellers.json"
