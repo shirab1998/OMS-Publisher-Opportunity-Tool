@@ -267,39 +267,6 @@ def parse_adstxt_line(line):
         'tag': parts[3].strip() if len(parts) > 3 else ''
     }
 
-# --- DATAFRAME FORMATTING FUNCTION ---
-def format_dataframe(df):
-    """Format dataframe with colors based on rank and owner/manager status"""
-    styled_df = df.copy()
-    
-    # Create a copy for styling
-    if "Highlight" not in styled_df.columns:
-        styled_df["Highlight"] = "none"
-    
-    # Set highlights based on logic
-    styled_df.loc[styled_df["Tranco Rank"] <= 50000, "Highlight"] = "high_value"
-    
-    if "Owner_Manager" in styled_df.columns:
-        # Domains where publisher is owner/manager get the yellow highlight
-        styled_df.loc[(styled_df["Owner_Manager"] == "Owner") | 
-                     (styled_df["Owner_Manager"] == "Manager"), "Highlight"] = "owner_manager"
-    
-    # Apply formatting
-    def highlight_rows(row):
-        value = row["Highlight"]
-        if value == "high_value":
-            return ["background-color: #d4edda"] * len(row)
-        elif value == "owner_manager":
-            return ["background-color: #fff3cd"] * len(row)
-        else:
-            return [""] * len(row)
-    
-    # Drop the highlight column before display
-    display_df = styled_df.drop(columns=["Highlight"])
-    
-    # Just return the DataFrame with an extra color tag
-    return display_df
-
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
 st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
@@ -439,6 +406,38 @@ if sample_direct_line:
     if len(parts) >= 1:
         pub_seller_domain = parts[0].lower()
 
+# --- DATAFRAME FORMATTING FUNCTION ---
+def format_dataframe(df):
+    """Format dataframe with colors based on rank and owner/manager status"""
+    styled_df = df.copy()
+    
+    # Create a copy for styling
+    if "Highlight" not in styled_df.columns:
+        styled_df["Highlight"] = "none"
+    
+    # Set highlights based on logic
+    styled_df.loc[styled_df["Tranco Rank"] <= 50000, "Highlight"] = "high_value"
+    
+    if "Owner_Manager" in styled_df.columns:
+        # Domains where publisher is owner/manager get the yellow highlight
+        styled_df.loc[(styled_df["Owner_Manager"] == "Owner") | 
+                     (styled_df["Owner_Manager"] == "Manager"), "Highlight"] = "owner_manager"
+    
+    # Apply formatting
+    def highlight_rows(row):
+        value = row["Highlight"]
+        if value == "high_value":
+            return ["background-color: #d4edda"] * len(row)
+        elif value == "owner_manager":
+            return ["background-color: #fff3cd"] * len(row)
+        else:
+            return [""] * len(row)
+    
+    # Drop the highlight column before display
+    display_df = styled_df.drop(columns=["Highlight"])
+    
+    return display_df.style.apply(highlight_rows, axis=1)
+
 # Function to check one domain
 def check_single_domain(domain, pub_seller_domain, pub_id):
     result = {}
@@ -527,9 +526,17 @@ def check_single_domain(domain, pub_seller_domain, pub_id):
             "Domain": domain,
             "Tranco Rank": rank,
             "OMS Buying": "Yes" if is_oms_buyer else "No",
-            "Owner_Manager": owner_status,
-            "Notes": ""  # Add empty Notes field for each domain
+            "Owner_Manager": owner_status
         }
+		# And add "Notes" field like this:
+return {
+    "Domain": domain,
+    "Tranco Rank": rank,
+    "OMS Buying": "Yes" if is_oms_buyer else "No",
+    "Owner_Manager": owner_status,
+    "Notes": ""  # Add empty Notes field for each domain
+}
+
     except requests.exceptions.RequestException as e:
         return {"error": f"Request error: {str(e)}"}
     except Exception as e:
@@ -600,9 +607,9 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                     progress_text = st.empty()
                     
                     for idx, domain in enumerate(domains, start=1):
-                        progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx / len(domains)*100):.1f}%): {domain}")
-                        progress.progress(idx / len(domains))
                         try:
+                            progress_text.text(f"Checking domain {idx}/{len(domains)} ({(idx/len(domains)*100):.1f}%): {domain}")
+                            
                             domain_result = check_single_domain(domain, pub_seller_domain, pub_id)
                             
                             if "error" in domain_result:
@@ -617,7 +624,6 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                                             "Tranco Rank": tranco_rankings[domain.lower()],
                                             "OMS Buying": "No",  # Default since we don't know
                                             "Owner_Manager": owner_status,
-                                            "Notes": ""
                                         })
                                         # Still log the error
                                         st.session_state.skipped_log.append((domain, domain_result["error"] + f" (but kept as {owner_status})"))
@@ -634,21 +640,23 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                         except Exception as e:
                             st.session_state.skipped_log.append((domain, f"Unexpected error: {str(e)}"))
 
-                    if not results:
-                        st.warning("No monetization opportunities found based on your criteria.")
-                        add_notification("No opportunities found", "warning")
-                        st.session_state.current_step = "input"
-                    else:
-                        st.session_state.current_step = "results"
-                        df_results = pd.DataFrame(results)
-                        
-                        # Make sure Notes column exists
-                        if "Notes" not in df_results.columns:
-                            df_results["Notes"] = ""
-                            
-                        df_results.sort_values("Tranco Rank", inplace=True)
-                        st.session_state.opportunities_table = df_results
-                        
+                        progress.progress(idx / len(domains))
+
+					if not results:
+						st.warning("No monetization opportunities found based on your criteria.")
+						add_notification("No opportunities found", "warning")
+						st.session_state.current_step = "input"
+					else:
+						st.session_state.current_step = "results"
+						df_results = pd.DataFrame(results)
+    
+					# Make sure Notes column exists
+					if "Notes" not in df_results.columns:
+						df_results["Notes"] = ""
+        
+					df_results.sort_values("Tranco Rank", inplace=True)
+					st.session_state.opportunities_table = df_results
+	
                         key = f"{pub_name or 'manual'}_{pub_id}"
                         st.session_state.setdefault("history", {})
                         st.session_state["history"][key] = {
@@ -667,6 +675,8 @@ if st.button("🔍 Find Monetization Opportunities", help="Alt+S"):
                 import traceback
                 st.error(traceback.format_exc())
                 st.session_state.current_step = "input"
+				
+				
 # --- ONE-CLICK RECHECK FUNCTIONALITY ---
 def recheck_domain(domain):
     """Recheck a previously skipped domain and add it to results if successful"""
@@ -680,6 +690,17 @@ def recheck_domain(domain):
         domain_row = st.session_state.opportunities_table[st.session_state.opportunities_table["Domain"] == domain]
         if not domain_row.empty and 'Notes' in domain_row.columns:
             existing_notes = domain_row.iloc[0]['Notes']
+    
+    # Then after this section where the result is checked:
+    # elif "error" in result:
+    #     add_notification(f"Recheck failed: {result['error']}", "error")
+    #     return
+    
+    # Add this to restore notes:
+    # Add existing notes back to result
+    if "error" not in result:
+        result["Notes"] = existing_notes
+
     
     with st.spinner(f"🔍 Rechecking {domain}..."):
         result = check_single_domain(domain, pub_seller_domain, pub_id)
@@ -701,10 +722,6 @@ def recheck_domain(domain):
         elif "error" in result:
             add_notification(f"Recheck failed: {result['error']}", "error")
             return
-        
-        # Add existing notes back to result
-        if "error" not in result:
-            result["Notes"] = existing_notes
             
         # Add to results
         if "opportunities_table" in st.session_state and not st.session_state.opportunities_table.empty:
@@ -769,56 +786,49 @@ if "opportunities_table" in st.session_state and not st.session_state.opportunit
     clickable_df = styled_df.copy()
     clickable_df.format({'Domain': make_clickable})
     
-    edited_df = st.data_editor(
-        st.session_state.opportunities_table,
-        num_rows="dynamic",
-        use_container_width=True
-    )
+    st.dataframe(styled_df, use_container_width=True)
+	st.subheader("📝 Domain Notes & Tags")
+	st.markdown("Add notes or tags to domains (e.g., 'contacted', 'low CPM', 'priority'). Changes are saved automatically."	)
 
-    # Save back edits to session
-    st.session_state.opportunities_table = edited_df
-
-    st.subheader("📝 Domain Notes & Tags")
-    st.markdown("Add notes or tags to domains (e.g., 'contacted', 'low CPM', 'priority'). Changes are saved automatically.")
-
-    # Create a container for the notes editor
-    notes_container = st.container()
+# Create a container for the notes editor
+	notes_container = st.container()	
     
-    # Create an edit interface for each row
-    with notes_container:
-        for idx, row in st.session_state.opportunities_table.iterrows():
-            domain = row['Domain']
+# Create an edit interface for each row
+with notes_container:
+    for idx, row in st.session_state.opportunities_table.iterrows():
+        domain = row['Domain']
+        
+        # Create unique key for each domain's notes
+        note_key = f"note_{domain.replace('.', '_')}"
+        
+        # Initialize the note in session state if not already there
+        if note_key not in st.session_state:
+            st.session_state[note_key] = row.get('Notes', '')
             
-            # Create unique key for each domain's notes
-            note_key = f"note_{domain.replace('.', '_')}"
+        # Create a row with domain and note input
+        cols = st.columns([2, 5])
+        cols[0].markdown(f"**{domain}**")
+        
+        # When note is changed, update the dataframe
+        updated_note = cols[1].text_input(
+            "Note", 
+            value=st.session_state[note_key],
+            key=f"input_{note_key}",
+            label_visibility="collapsed"
+        )
+        
+        # Update dataframe when note changes
+        if updated_note != st.session_state[note_key]:
+            st.session_state[note_key] = updated_note
+            st.session_state.opportunities_table.at[idx, 'Notes'] = updated_note
             
-            # Initialize the note in session state if not already there
-            if note_key not in st.session_state:
-                st.session_state[note_key] = row.get('Notes', '')
-                
-            # Create a row with domain and note input
-            cols = st.columns([2, 5])
-            cols[0].markdown(f"**{domain}**")
-            
-            # When note is changed, update the dataframe
-            updated_note = cols[1].text_input(
-                "Note", 
-                value=st.session_state[note_key],
-                key=f"input_{note_key}",
-                label_visibility="collapsed"
-            )
-            
-            # Update dataframe when note changes
-            if updated_note != st.session_state[note_key]:
-                st.session_state[note_key] = updated_note
-                st.session_state.opportunities_table.at[idx, 'Notes'] = updated_note
-                
-                # Also update in history
-                if "history" in st.session_state:
-                    key = f"{pub_name or 'manual'}_{pub_id}"
-                    if key in st.session_state["history"]:
-                        st.session_state["history"][key]["table"].at[idx, 'Notes'] = updated_note
-    
+            # Also update in history
+            if "history" in st.session_state:
+                key = f"{pub_name or 'manual'}_{pub_id}"
+                if key in st.session_state["history"]:
+                    st.session_state["history"][key]["table"].at[idx, 'Notes'] = updated_note
+					
+					
     # Download CSV button with enhanced formatting
     @st.cache_data
     def convert_df_to_csv_with_formatting(df):
@@ -871,66 +881,73 @@ if "opportunities_table" in st.session_state and not st.session_state.opportunit
             st.error("Please enter a valid username before sending the email.")
             add_notification("Missing email username", "error")
             return
-
+        
         try:
+            # Check for required secrets
             if not hasattr(st, "secrets") or "EMAIL_ADDRESS" not in st.secrets or "EMAIL_PASSWORD" not in st.secrets:
                 st.error("Email configuration missing. Please check your Streamlit secrets.")
                 add_notification("Email configuration missing", "error")
                 return
-
+            
+            # Create the email
             full_email = f"{email_local_part.strip()}@onlinemediasolutions.com"
             from_email = st.secrets["EMAIL_ADDRESS"]
             email_password = st.secrets["EMAIL_PASSWORD"]
-
+            
+            # Sanitize inputs for email subject
             def sanitize_header(text):
                 text = unicodedata.normalize("NFKD", str(text))
                 text = re.sub(r'[^ -~]', '', text)
                 return text.strip().replace("\r", "").replace("\n", "")
-
+            
             subject_name = sanitize_header(pub_name or "Manual Domains")
             subject_id = sanitize_header(pub_id or "NoID")
-
+            
             msg = EmailMessage()
             msg["Subject"] = f"{subject_name} ({subject_id}) Monetization Opportunities"
             msg["From"] = from_email.strip()
             msg["To"] = full_email.strip()
-
-            # Construct HTML rows
-            styled_rows = ""
-            for _, row in st.session_state.opportunities_table.iterrows():
-                bg_color = "#FFFFFF"
-                if row["Tranco Rank"] <= 50000:
-                    bg_color = "#d4edda"
-                elif row["Owner_Manager"] in ["Owner", "Manager"]:
-                    bg_color = "#fff3cd"
-
-                notes = row.get("Notes", "")
-                styled_rows += f"""
-                    <tr style="background-color: {bg_color}">
-                        <td><a href="https://{row['Domain']}" target="_blank">{row['Domain']}</a></td>
-                        <td>{row['Tranco Rank']}</td>
-                        <td>{row['Owner_Manager']}</td>
-                        <td>{row['OMS Buying']}</td>
-                        <td>{notes}</td>
-                    </tr>
-                """
-
+            
+            # Create HTML table with proper styling
+			styled_rows = ""
+			for _, row in st.session_state.opportunities_table.iterrows():
+				bg_color = "#FFFFFF"  # Default white
+    
+				# Apply color highlighting based on rank and owner/manager status
+				if row["Tranco Rank"] <= 50000:
+					bg_color = "#d4edda"  # Green for high-value
+				elif row["Owner_Manager"] in ["Owner", "Manager"]:
+					bg_color = "#fff3cd"  # Yellow for owner/manager
+    
+				# Get notes or empty string if not available
+				notes = row.get('Notes', '')
+    
+				# Create table row with proper styling (now including Notes column)
+				styled_rows += f"""
+				<tr style="background-color: {bg_color}">
+					<td><a href="https://{row['Domain']}" target="_blank">{row['Domain']}</a></td>
+					<td>{row['Tranco Rank']}</td>
+					<td>{row['Owner_Manager']}</td>
+					<td>{row['OMS Buying']}</td>
+				<td>{notes}</td>
+				</tr>"""
+            
             # Complete HTML table
-            html_table = f"""
-            <table border="1" cellpadding="5" cellspacing="0" style="font-family:Arial; font-size:14px; border-collapse:collapse;">
-                <thead style="background-color:#f2f2f2;">
-                    <tr>
-                        <th>Domain</th>
-                        <th>Tranco Rank</th>
-                        <th>Owner/Manager</th>
-                        <th>OMS Buying</th>
-                        <th>Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {styled_rows}
-                </tbody>
-            </table>"""
+			html_table = f"""
+			<table border="1" cellpadding="5" cellspacing="0" style="font-family:Arial; font-size:14px; border-collapse:collapse;">
+				<thead style="background-color:#f2f2f2;">
+					<tr>
+						<th>Domain</th>
+						<th>Tranco Rank</th>
+						<th>Owner/Manager</th>
+						<th>OMS Buying</th>
+						<th>Notes</th>
+					</tr>
+				</thead>
+				<tbody>
+					{styled_rows}
+				</tbody>
+			</table>"""
             
             # Complete email body
             body = f"""
@@ -940,31 +957,7 @@ if "opportunities_table" in st.session_state and not st.session_state.opportunit
                 <p>Here are the monetization opportunities for <strong>{subject_name}</strong> (ID: {subject_id}):</p>
                 <p><strong>Legend:</strong><br>
                 <span style="background-color: #d4edda; padding: 2px 5px;">Green</span> = High-value opportunities (Tranco rank ≤ 50,000)<br>
-                <span style="background-color: #fff3cd; padding: 2px 5px;">Yellow</span> = Publisher is owner/manager
-                </p>
-                {html_table}
-                <p>Best regards,<br>The OMS Team</p>
-              </body>
-            </html>
-            """
-
-            msg.set_content("This is an HTML email. Please view it in an HTML-compatible email client.")
-            msg.add_alternative(body, subtype='html')
-
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                smtp.login(from_email, email_password)
-                smtp.send_message(msg)
-
-            st.success(f"📧 Email successfully sent to {full_email}")
-            add_notification(f"Email sent to {full_email}", "success")
-
-        except Exception as e:
-            st.error(f"Error sending email: {str(e)}")
-            add_notification("Email sending failed", "error")
-    
-    # Send Email button
-    if st.button("📤 Send Email", help="Alt+E"):
-        send_email()
+                <span style="
 
 # --- SKIPPED DOMAINS DISPLAY ---
 if "skipped_log" in st.session_state and st.session_state.skipped_log:
