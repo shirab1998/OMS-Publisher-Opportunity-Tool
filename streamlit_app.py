@@ -423,13 +423,19 @@ if not st.session_state.opportunities_table.empty:
 if st.button("🔁 Start Over"):
     history_backup = st.session_state.get("history", {}).copy()
 
-    # Reset all except recent publisher history
+    # Clear all session state
     st.session_state.clear()
+
+    # Restore recent publishers
     st.session_state["history"] = history_backup
 
-    # Ensure opportunity table and comment are reset too
-    st.session_state["opportunities_table"] = pd.DataFrame()
-    st.session_state["comment_text"] = ""
+    # Explicitly reset relevant input fields
+    for field in [
+        "pub_domain", "pub_name", "pub_id", "sample_direct_line",
+        "manual_domains_input", "sellersjson_input", "comment_text",
+        "opportunities_table", "show_input", "mode"
+    ]:
+        st.session_state[field] = "" if field != "opportunities_table" else pd.DataFrame()
 
     st.rerun()
     
