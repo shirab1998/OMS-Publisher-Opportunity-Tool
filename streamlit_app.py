@@ -131,28 +131,8 @@ if "opportunities_table" not in st.session_state or st.session_state.opportuniti
 
     # Toggle for manual mode
     manual_mode = st.checkbox("🔀 Use Manual Domains Instead", value=False)
-    
-    # Show standard or manual fields based on toggle
-    if not manual_mode:
-        pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
-        pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
-        manual_domains_input = ""
-    else:
-        st.info("Manual mode active: Paste domains manually. Publisher Domain/Name are hidden.")
-        manual_domains_input = st.text_area("Paste domains manually (comma or newline separated)", height=100)
-        pub_domain = ""
-        pub_name = ""
+    sellersjson_mode = st.checkbox("📄 Use Manual sellers.json Instead", value=False)
 
-    pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
-    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
-else:
-    pub_domain = st.session_state.get("pub_domain", "")
-    pub_name = st.session_state.get("pub_name", "")
-    pub_id = st.session_state.get("pub_id", "")
-    sample_direct_line = st.session_state.get("sample_direct_line", "")
-    manual_domains_input = st.session_state.get("manual_domains_input", "")
-    
-sellersjson_mode = st.checkbox("📄 Use Manual sellers.json Instead", value=False)
 # Show standard or manual fields based on toggle
     if not manual_mode and not sellersjson_mode:
         pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
