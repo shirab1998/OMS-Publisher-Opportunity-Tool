@@ -521,21 +521,14 @@ def check_single_domain(domain, pub_seller_domain, pub_id):
                 "owner_status": owner_status  # Return owner status even if not in Tranco
             }
 
-        rank = tranco_rankings[domain_key]
+                rank = tranco_rankings[domain_key]
         return {
             "Domain": domain,
             "Tranco Rank": rank,
             "OMS Buying": "Yes" if is_oms_buyer else "No",
-            "Owner_Manager": owner_status
+            "Owner_Manager": owner_status,
+            "Notes": ""  # Add empty Notes field for each domain
         }
-		# And add "Notes" field like this:
-return {
-    "Domain": domain,
-    "Tranco Rank": rank,
-    "OMS Buying": "Yes" if is_oms_buyer else "No",
-    "Owner_Manager": owner_status,
-    "Notes": ""  # Add empty Notes field for each domain
-}
 
     except requests.exceptions.RequestException as e:
         return {"error": f"Request error: {str(e)}"}
@@ -695,13 +688,14 @@ def recheck_domain(domain):
     # elif "error" in result:
     #     add_notification(f"Recheck failed: {result['error']}", "error")
     #     return
-    
-    # Add this to restore notes:
-    # Add existing notes back to result
-    if "error" not in result:
-        result["Notes"] = existing_notes
 
-    
+    # Add existing notes back to result
+    result = check_single_domain(domain, pub_seller_domain, pub_id)
+
+	if "error" not in result:
+	    result["Notes"] = existing_notes
+
+
     with st.spinner(f"🔍 Rechecking {domain}..."):
         result = check_single_domain(domain, pub_seller_domain, pub_id)
         
