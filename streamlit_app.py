@@ -286,62 +286,72 @@ if st.button("🔍 Find Monetization Opportunities"):
                     # Log completion
                     st.success("✅ Analysis complete")
                     st.balloons()
-
-            except Exception as e:
-                st.error(f"Error while processing: {e}")
-                
-                            # --- Owner/Manager detection ---
-                            owner_role = "no"
-                            pub_domain_lower = pub_domain.lower()
-                            found_owner = any("ownerdomain" in l.lower() for l in ads_lines)
-                            found_manager = any("managerdomain" in l.lower() for l in ads_lines)
-                            for l in ads_lines:
-                                line_lower = l.lower()
-                                if "ownerdomain" in line_lower and pub_domain_lower in line_lower:
-                                    owner_role = "owner"
-                                    break
-                                elif "managerdomain" in line_lower and pub_domain_lower in line_lower:
-                                    owner_role = "manager"
-                                    break
-                            else:
-                                if found_owner and not found_manager:
-                                    owner_role = "managerdomain not indicated"
-                                elif found_manager and not found_owner:
-                                    owner_role = "ownerdomain not indicated"
-
-                            row = {
-                                "Domain": domain,
-                                "Tranco Rank": tranco_rankings[domain.lower()],
-                                "Owner/Manager": owner_role,
-                                "OMS Buying": "Yes" if is_oms_buyer else "No",
-                                "Comment": ""
-                            }
-                            results.append(row)
-                            time.sleep(0.1)
-
-                        except Exception as e:
-                            st.session_state.skipped_log.append((domain, f"Request error: {e}"))
-
-                        progress.progress(idx / len(domains))
-                        progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain} ({round(100*idx/len(domains))}%)")
-
-                    df_results = pd.DataFrame(results)
-                    df_results.sort_values("Tranco Rank", inplace=True)
-                    st.session_state.opportunities_table = df_results
-                    key = f"{pub_name or 'manual'}_{pub_id}"
-                    st.session_state.setdefault("history", {})
-                    st.session_state["history"][key] = {
-                        "name": pub_name or "Manual Domains",
-                        "id": pub_id,
-                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "table": df_results.copy()
-                    }
-                    st.success("✅ Analysis complete")
-                    st.balloons()
-
+###
             except Exception as e:
                 st.error(f"Error while processing: {e}")
 
+            # --- Owner/Manager Detection ---
+            try:
+                owner_role = "no"  # Default to "no" if neither owner nor manager is found
+                pub_domain_lower = pub_domain.lower()  # Convert publisher domain to lowercase
+                found_owner = any("ownerdomain" in l.lower() for l in ads_lines)  # Check for "ownerdomain"
+                found_manager = any("managerdomain" in l.lower() for l in ads_lines)  # Check for "managerdomain"
+
+                # Iterate through ads.txt lines to match owner/manager roles
+                for l in ads_lines:
+                    line_lower = l.lower()
+                    if "ownerdomain" in line_lower and pub_domain_lower in line_lower:
+                        owner_role = "owner"  # Found the publisher as an owner
+                        break
+                    elif "managerdomain" in line_lower and pub_domain_lower in line_lower:
+                        owner_role = "manager"  # Found the publisher as a manager
+                        break
+                else:
+                    # If neither owner nor manager is explicitly matched, check indirect cases
+                    if found_owner and not found_manager:
+                        owner_role = "managerdomain not indicated"
+                    elif found_manager and not found_owner:
+                        owner_role = "ownerdomain not indicated"
+
+                # Append the results row
+                row = {
+                    "Domain": domain,
+                    "Tranco Rank": tranco_rankings.get(domain.lower(), "N/A"),
+                    "Owner/Manager": owner_role,
+                    "OMS Buying": "Yes" if is_oms_buyer else "No",
+                    "Comment": ""
+                }
+                results.append(row)
+                time.sleep(0.1)  # Short delay to avoid overloading requests
+
+            except Exception as e:
+                st.session_state.skipped_log.append((domain, f"Request error during Owner/Manager detection: {e}"))
+
+            # Update progress
+            progress.progress(idx / len(domains))
+            progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain} ({round(100 * idx / len(domains))}%)")
+
+        # Convert results to DataFrame and sort by Tranco Rank
+        df_results = pd.DataFrame(results)
+        df_results.sort_values("Tranco Rank", inplace=True)
+        st.session_state.opportunities_table = df_results
+
+        # Save analysis to session history
+        key = f"{pub_name or 'manual'}_{pub_id}"
+        st.session_state.setdefault("history", {})
+        st.session_state["history"][key] = {
+            "name": pub_name or "Manual Domains",
+            "id": pub_id,
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "table": df_results.copy()
+        }
+
+        # Success message and completion
+        st.success("✅ Analysis complete")
+        st.balloons()
+
+    except Exception as e:
+        st.error(f"Error while processing: {e}")
 # --- RESULTS DISPLAY ---
 if not st.session_state.opportunities_table.empty:
     st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
