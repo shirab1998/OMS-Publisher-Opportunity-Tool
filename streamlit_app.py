@@ -298,19 +298,21 @@ if st.button("🔍 Find Monetization Opportunities"):
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
 if not st.session_state.opportunities_table.empty:
-    
+    pub_name = st.session_state.get("pub_name", "")
+    pub_id = st.session_state.get("pub_id", "")
+
     st.subheader(f"📈 Opportunities for {pub_name if pub_name else 'Manual Domains'} ({pub_id if pub_id else 'No ID'})")
+
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
-    oms_no = total - oms_yes
     skipped = len(st.session_state.skipped_log)
-    
+
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
     styled_df = st.session_state.opportunities_table.copy()
     styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
     styled_df_display = styled_df.drop(columns=["Highlight"])
-    
+
     st.dataframe(
         styled_df_display.style.apply(
             lambda x: ["background-color: #d4edda" if v else "" for v in styled_df["Highlight"]],
@@ -318,9 +320,9 @@ if not st.session_state.opportunities_table.empty:
         ),
         use_container_width=True
     )
-    
-    csv_data = st.session_state.opportunities_table.to_csv(index=False)
 
+    # ✅ CSV + comment appear ONLY if analysis was run
+    csv_data = st.session_state.opportunities_table.to_csv(index=False)
     st.download_button(
         "⬇️ Download Opportunities CSV",
         data=csv_data,
@@ -328,15 +330,13 @@ if not st.session_state.opportunities_table.empty:
         mime="text/csv"
     )
 
+    # ✅ COMMENT BOX: only visible after results
     st.markdown("### 🗒️ Optional Comment for Email")
     comment_text = st.text_area(
         "Write a message to include in the email (optional)",
         key="comment_text"
     )
 
-
-
- 
 # --- EMAIL SECTION ---
 if not st.session_state.opportunities_table.empty:
     def sanitize_header(text):
