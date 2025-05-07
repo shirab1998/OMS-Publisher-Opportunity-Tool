@@ -160,9 +160,6 @@ if "opportunities_table" not in st.session_state or st.session_state.opportuniti
 pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
 sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
 
-        pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
-        sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
-
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
     st.session_state["pub_domain"] = pub_domain
