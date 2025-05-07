@@ -152,7 +152,7 @@ else:
     sample_direct_line = st.session_state.get("sample_direct_line", "")
     manual_domains_input = st.session_state.get("manual_domains_input", "")
     
-    sellersjson_mode = st.checkbox("📄 Use Manual sellers.json Instead", value=False)
+sellersjson_mode = st.checkbox("📄 Use Manual sellers.json Instead", value=False)
 # Show standard or manual fields based on toggle
     if not manual_mode and not sellersjson_mode:
         pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
