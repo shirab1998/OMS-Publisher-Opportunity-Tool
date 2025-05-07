@@ -274,6 +274,8 @@ if st.button("🔍 Find Monetization Opportunities"):
                         "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "table": df_results.copy()
                     }
+                    progress.empty()
+                    progress_text.empty()
                     st.success("✅ Analysis complete")
                     st.balloons()
 
@@ -303,6 +305,8 @@ if not st.session_state.opportunities_table.empty:
         ),
         use_container_width=True
     )
+    st.markdown("### 🗒️ Optional Comment for Email")
+    comment_text = st.text_area("Write a message to include in the email (optional)", key="comment_text")
 
     csv_data = st.session_state.opportunities_table.to_csv(index=False)
     st.download_button(
@@ -331,7 +335,7 @@ if not st.session_state.opportunities_table.empty:
         "<div style='margin-top: 0.6em; font-size: 16px;'>@onlinemediasolutions.com</div>",
         unsafe_allow_html=True
     )
-
+    comment_text = st.session_state.get("comment_text", "").strip()
     if st.button("Send Email"):
         if not email_local_part.strip():
             st.error("Please enter a valid username before sending the email.")
@@ -351,6 +355,8 @@ if not st.session_state.opportunities_table.empty:
                 html_table = st.session_state.opportunities_table.to_html(
                     index=False, border=1, justify='center', classes='styled-table'
                 )
+                comment_text = st.session_state.get("comment_text", "").strip()
+
                 body = f"""
 <html>
   <head>
@@ -378,12 +384,12 @@ if not st.session_state.opportunities_table.empty:
     <p>Hi there!</p>
     <p>Here is the list of opportunities for <strong>{subject_name}</strong> ({subject_id}):</p>
     {html_table}
-    {f"<p><strong>Adding here your manual comments:</strong><br>{st.session_state.get('comment_text', '').strip()}</p>" if st.session_state.get('comment_text', '').strip() else ""}
+    {"<p><strong>Adding here your manual comments:</strong><br>" + comment_text + "</p>" if comment_text else ""}
     <p>Warm regards,<br/>Automation bot</p>
-
   </body>
 </html>
 """
+
                 msg.set_content("This email requires an HTML-capable email client.")
                 msg.add_alternative(body, subtype="html")
 
