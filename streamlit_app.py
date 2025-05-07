@@ -422,12 +422,17 @@ if not st.session_state.opportunities_table.empty:
 # --- START OVER BUTTON ---
 if st.button("🔁 Start Over"):
     history_backup = st.session_state.get("history", {}).copy()
-    for key in list(st.session_state.keys()):
-        if key != "history":
-            del st.session_state[key]
-    st.session_state["comment_text"] = ""
-    st.rerun()
 
+    # Reset all except recent publisher history
+    st.session_state.clear()
+    st.session_state["history"] = history_backup
+
+    # Ensure opportunity table and comment are reset too
+    st.session_state["opportunities_table"] = pd.DataFrame()
+    st.session_state["comment_text"] = ""
+
+    st.rerun()
+    
 # --- SKIPPED DOMAINS REPORT ---
 st.session_state.setdefault("skipped_log", [])
 
