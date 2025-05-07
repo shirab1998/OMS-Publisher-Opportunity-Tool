@@ -126,6 +126,13 @@ tranco_rankings = load_tranco_top_domains()
 st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
 
 # --- INPUT SECTION ---
+pub_domain = ""
+pub_name = ""
+pub_id = ""
+sample_direct_line = ""
+manual_domains_input = ""
+sellersjson_input = ""
+
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
@@ -273,7 +280,7 @@ if st.button("🔍 Find Monetization Opportunities"):
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
 if not st.session_state.opportunities_table.empty:
-    st.subheader(f"📈 Opportunities for {pub_name or 'Manual Domains'} ({pub_id})")
+    st.subheader(f"📈 Opportunities for {pub_name if pub_name else 'Manual Domains'} ({pub_id if pub_id else 'No ID'})")
     total = len(st.session_state.opportunities_table)
     oms_yes = (st.session_state.opportunities_table["OMS Buying"] == "Yes").sum()
     oms_no = total - oms_yes
