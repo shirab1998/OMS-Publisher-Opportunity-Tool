@@ -157,6 +157,9 @@ if "opportunities_table" not in st.session_state or st.session_state.opportuniti
         pub_name = ""
         manual_domains_input = ""
 
+pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+
         pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
         sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
 
@@ -316,17 +319,21 @@ if not st.session_state.opportunities_table.empty:
         use_container_width=True
     )
     
-csv_data = st.session_state.opportunities_table.to_csv(index=False)
+    csv_data = st.session_state.opportunities_table.to_csv(index=False)
 
-st.download_button(
-    "⬇️ Download Opportunities CSV",
-    data=csv_data,
-    file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
-    mime="text/csv"
-)
- # Optional Comment + CSV Export + Email UI
-st.markdown("### 🗒️ Optional Comment for Email")
-comment_text = st.text_area("Write a message to include in the email (optional)", key="comment_text")
+    st.download_button(
+        "⬇️ Download Opportunities CSV",
+        data=csv_data,
+        file_name=f"opportunities_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
+
+    st.markdown("### 🗒️ Optional Comment for Email")
+    comment_text = st.text_area(
+        "Write a message to include in the email (optional)",
+        key="comment_text"
+    )
+
 
 
  
@@ -421,7 +428,7 @@ if st.button("🔁 Start Over"):
     for key in list(st.session_state.keys()):
         if key != "history":
             del st.session_state[key]
-    st.session_state["history"] = history_backup
+    st.session_state["comment_text"] = ""
     st.rerun()
 
 # --- SKIPPED DOMAINS REPORT ---
