@@ -142,6 +142,16 @@ def load_tranco_top_domains():
 tranco_rankings = load_tranco_top_domains()
 
 st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
+# --- SIDEBAR: HELP & TIPS ---
+with st.sidebar:
+    with st.expander("💡 Help & Tips", expanded=False):
+        st.markdown("""
+        - Paste a Tranco list URL from [Tranco](https://tranco-list.eu/) if needed.
+        - You can enter publisher info manually or via sellers.json.
+        - Add comments to each result for later use.
+        - Skipped domains can be rechecked individually.
+        - 'Start Over' clears everything.
+        """)
 
 
 # --- INPUT SECTION ---
@@ -187,6 +197,7 @@ if st.button("🔍 Find Monetization Opportunities"):
                 else:
                     # Fetch and validate sellers.json
                     try:
+                        sellers_url = f"https://{pub_domain}/sellers.json"
                         sellers_data = fetch_sellers_json(sellers_url)
                         if "sellers" not in sellers_data or not isinstance(sellers_data["sellers"], list):
                             st.error(f"Invalid sellers.json structure at {sellers_url}")
@@ -240,31 +251,37 @@ if st.button("🔍 Find Monetization Opportunities"):
                                 for line in ads_lines
                             )
 
-                            # Check if domain is in Tranco rankings
-                            if domain.lower() not in tranco_rankings:
-                                st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
-                                continue
-
                             # Add valid results
                             row = {
                                 "Domain": domain,
-                                "Tranco Rank": tranco_rankings.get(domain.lower(), "N/A"),
                                 "OMS Buying": "Yes" if is_oms_buyer else "No",
-                                "Comment": ""  # Comment field for inline editing
+                                "Comment": ""  # Inline comment box placeholder
                             }
                             results.append(row)
 
                             # Update progress
                             progress.progress(idx / len(domains))
-                            progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain} ({round(100 * idx / len(domains))}%)")
+                            progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
                         except Exception as e:
                             st.session_state.skipped_log.append((domain, f"Request error: {e}"))
 
                     # Convert results to DataFrame and store in session state
                     df_results = pd.DataFrame(results)
-                    df_results.sort_values("Tranco Rank", inplace=True)
+
+                    # Add inline comment boxes
+                    for i, row in df_results.iterrows():
+                        key = f"comment_{i}"
+                        df_results.at[i, "Comment"] = st.text_input(
+                            f"Comment for {row['Domain']}",
+                            value=row["Comment"],
+                            key=key
+                        )
+
                     st.session_state.opportunities_table = df_results
+
+                    # Display results
+                    st.dataframe(df_results, use_container_width=True)
 
                     # Log completion
                     st.success("✅ Analysis complete")
@@ -272,6 +289,7 @@ if st.button("🔍 Find Monetization Opportunities"):
 
             except Exception as e:
                 st.error(f"Error while processing: {e}")
+                
                             # --- Owner/Manager detection ---
                             owner_role = "no"
                             pub_domain_lower = pub_domain.lower()
