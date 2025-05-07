@@ -305,10 +305,12 @@ if not st.session_state.opportunities_table.empty:
         ),
         use_container_width=True
     )
-    st.markdown("### 🗒️ Optional Comment for Email")
-    comment_text = st.text_area("Write a message to include in the email (optional)", key="comment_text")
+ # Optional Comment + CSV Export + Email UI
+st.markdown("### 🗒️ Optional Comment for Email")
+comment_text = st.text_area("Write a message to include in the email (optional)", key="comment_text")
 
-    csv_data = st.session_state.opportunities_table.to_csv(index=False)
+csv_data = st.session_state.opportunities_table.to_csv(index=False)
+
 st.download_button(
     "⬇️ Download Opportunities CSV",
     data=csv_data,
@@ -316,8 +318,6 @@ st.download_button(
     mime="text/csv"
 )
 
-st.markdown("### 🗒️ Add a Comment (Optional)")
-comment_text = st.text_area("Include a note with the email", key="comment_text")
  
 # --- EMAIL SECTION ---
 if not st.session_state.opportunities_table.empty:
@@ -337,6 +337,7 @@ if not st.session_state.opportunities_table.empty:
         unsafe_allow_html=True
     )
     comment_text = st.session_state.get("comment_text", "").strip()
+
     if st.button("Send Email"):
         if not email_local_part.strip():
             st.error("Please enter a valid username before sending the email.")
@@ -346,8 +347,9 @@ if not st.session_state.opportunities_table.empty:
                 from_email = st.secrets["EMAIL_ADDRESS"]
                 email_password = st.secrets["EMAIL_PASSWORD"]
 
-                subject_name = sanitize_header(pub_name or "Manual Domains")
-                subject_id = sanitize_header(pub_id or "NoID")
+                subject_name = sanitize_header(st.session_state.get("pub_name", "") or "Manual Domains")
+                subject_id = sanitize_header(st.session_state.get("pub_id", "") or "NoID")
+
                 msg = EmailMessage()
                 msg["Subject"] = f"{subject_name} ({subject_id}) opportunities"
                 msg["From"] = from_email.strip()
@@ -385,7 +387,7 @@ if not st.session_state.opportunities_table.empty:
     <p>Hi there!</p>
     <p>Here is the list of opportunities for <strong>{subject_name}</strong> ({subject_id}):</p>
     {html_table}
-    {"<p><strong>Adding here your manual comments:</strong><br>" + comment_text + "</p>" if comment_text else ""}
+    {f"<p><strong>Adding here your manual comments:</strong><br>{comment_text}</p>" if comment_text else ""}
     <p>Warm regards,<br/>Automation bot</p>
   </body>
 </html>
