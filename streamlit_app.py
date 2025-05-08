@@ -113,12 +113,28 @@ with st.sidebar:
 def load_tranco_top_domains():
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         return {}
+
     try:
-        df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE, names=["Rank", "Domain"], skiprows=1)
+        df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE)
+        df.columns = df.columns.str.strip()  # Clean header whitespace
+
+        # Rename first two columns if headers are non-standard (e.g., opened via Excel)
+        if "Rank" not in df.columns or "Domain" not in df.columns:
+            first_two = df.columns[:2]
+            df.rename(columns={first_two[0]: "Rank", first_two[1]: "Domain"}, inplace=True)
+
+        # Drop rows with non-integer ranks (in case of header rows or corruption)
+        df = df[df["Rank"].apply(lambda x: str(x).isdigit())]
+        df["Rank"] = df["Rank"].astype(int)
+
+        # Filter by threshold
         df = df[df["Rank"] <= TRANCO_THRESHOLD]
+
+        # Return as a dictionary
         return dict(zip(df["Domain"].str.lower(), df["Rank"]))
+
     except Exception as e:
-        st.error(f"Error reading Tranco CSV: {e}")
+        st.error(f"❌ Error reading Tranco CSV: {e}")
         return {}
 
 tranco_rankings = load_tranco_top_domains()
