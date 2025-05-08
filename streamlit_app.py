@@ -303,6 +303,8 @@ if st.button("🔍 Find Monetization Opportunities"):
                     progress_text.empty()
                     st.success("✅ Analysis complete")
                     st.balloons()
+            except Exception as e:
+                st.error(f"❌ Unexpected error: {e}")
 
 # --- RESULTS DISPLAY ---
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
