@@ -268,35 +268,39 @@ if st.button("🔍 Find Monetization Opportunities"):
 
                     progress.progress(idx / len(domains))
                     progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
-
+                    
                 # --- SAVE RESULTS TO SESSION ---
-if not results:
-    st.warning("✅ Scan complete, but no valid monetization opportunities were found.")
-    st.session_state.opportunities_table = pd.DataFrame()
-else:
-    df_results = pd.DataFrame(results)
+                if not results:
+                    st.warning("✅ Scan complete, but no valid monetization opportunities were found.")
+                    st.session_state.opportunities_table = pd.DataFrame()
+                else:
+                    df_results = pd.DataFrame(results)
 
-    if "Tranco Rank" in df_results.columns:
-        df_results.sort_values("Tranco Rank", inplace=True)
-    else:
-        st.warning("Some domains may be missing a Tranco Rank. Sorting skipped.")
+                    # Handle missing or incomplete 'Tranco Rank' values
+                    if "Tranco Rank" in df_results.columns:
+                        # Drop rows where 'Tranco Rank' is missing (optional)
+                        df_results = df_results[df_results["Tranco Rank"].notna()]
+                        # Sort safely
+                        df_results.sort_values("Tranco Rank", inplace=True)
+                    else:
+                        st.warning("Some domains are missing a Tranco Rank. Sorting skipped.")
 
-    st.session_state.opportunities_table = df_results
+                    st.session_state.opportunities_table = df_results
 
-    # Save to session history
-    key = f"{(pub_name or 'Manual')}_{pub_id}"
-    st.session_state.setdefault("history", {})
-    st.session_state["history"][key] = {
-        "name": pub_name or "Manual Domains",
-        "id": pub_id,
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "table": df_results.copy()
-    }
+                    # Save to session history
+                    key = f"{(pub_name or 'Manual')}_{pub_id}"
+                    st.session_state.setdefault("history", {})
+                    st.session_state["history"][key] = {
+                        "name": pub_name or "Manual Domains",
+                        "id": pub_id,
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "table": df_results.copy()
+                    }
 
-    progress.empty()
-    progress_text.empty()
-    st.success("✅ Analysis complete")
-    st.balloons()
+                    progress.empty()
+                    progress_text.empty()
+                    st.success("✅ Analysis complete")
+                    st.balloons()
 
 # --- RESULTS DISPLAY ---
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
