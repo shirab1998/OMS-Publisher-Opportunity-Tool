@@ -1,3 +1,4 @@
+#debugged code to fix the ranking issue
 import streamlit as st
 import requests
 import pandas as pd
