@@ -122,6 +122,8 @@ def load_tranco_top_domains():
         return {}
 
 tranco_rankings = load_tranco_top_domains()
+st.write(f"Loaded {len(tranco_rankings)} Tranco entries")
+
 
 st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
 
