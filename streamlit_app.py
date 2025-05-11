@@ -114,40 +114,45 @@ with st.sidebar:
                 st.stop()
 
 # --- TRANCO LOADING ---
+# --- TRANCO LOADING ---
 @st.cache_data
 def load_tranco_top_domains():
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         return {}
 
     try:
-        df = pd.read_csv(TRANCO_TOP_DOMAINS_FILE)
-        df.columns = df.columns.str.strip()  # Clean header whitespace
+        # No headers in file — specify column names manually
+        df = pd.read_csv(
+            TRANCO_TOP_DOMAINS_FILE,
+            names=["Rank", "Domain"],
+            header=None,
+            encoding="utf-8",
+            on_bad_lines="skip"
+        )
 
-        # Rename first two columns if headers are non-standard (e.g., opened via Excel)
-        if "Rank" not in df.columns or "Domain" not in df.columns:
-            first_two = df.columns[:2]
-            df.rename(columns={first_two[0]: "Rank", first_two[1]: "Domain"}, inplace=True)
-
-        # Drop rows with non-integer ranks (in case of header rows or corruption)
-        df = df[df["Rank"].apply(lambda x: str(x).isdigit())]
+        df["Rank"] = pd.to_numeric(df["Rank"], errors="coerce")
+        df.dropna(subset=["Rank"], inplace=True)
         df["Rank"] = df["Rank"].astype(int)
 
-        # Filter by threshold
         df = df[df["Rank"] <= TRANCO_THRESHOLD]
 
-        # Return as a dictionary
+        if df.empty:
+            st.warning("⚠️ Tranco file loaded but no valid data found under the rank threshold.")
+            return {}
+
         return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
     except Exception as e:
         st.error(f"❌ Error reading Tranco CSV: {e}")
         return {}
 
+# Load Tranco rankings
 tranco_rankings = load_tranco_top_domains()
+
 if not tranco_rankings:
     st.warning("⚠️ Tranco list may not have loaded properly or is empty. Domains will be skipped if they can't be ranked.")
-
-
-st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
+else:
+    st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
 
 # --- INPUT SECTION ---
 pub_domain = ""
