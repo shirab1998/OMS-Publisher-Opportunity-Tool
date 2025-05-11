@@ -98,7 +98,11 @@ with st.sidebar:
                 st.subheader(f"\U0001F4DC Past Results: {entry['name']} ({entry['id']})")
                 st.markdown(small_date, unsafe_allow_html=True)
                 styled = entry['table'].copy()
-                styled["Highlight"] = styled["Tranco Rank"] <= 50000
+                if "Tranco Rank" in styled.columns:
+                    styled["Highlight"] = styled["Tranco Rank"] <= 50000
+                else:
+                    styled["Highlight"] = False  # or skip highlighting entirely
+
                 styled_display = styled.drop(columns=["Highlight"])
                 st.dataframe(
                     styled_display.style.apply(
@@ -139,6 +143,9 @@ def load_tranco_top_domains():
         return {}
 
 tranco_rankings = load_tranco_top_domains()
+if not tranco_rankings:
+    st.warning("⚠️ Tranco list may not have loaded properly or is empty. Domains will be skipped if they can't be ranked.")
+
 
 st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
 
