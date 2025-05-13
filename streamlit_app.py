@@ -116,9 +116,10 @@ with st.sidebar:
 
 # --- TRANCO LOADING ---
 @st.cache_data
-def load_tranco_top_domains():
+def load_tranco_top_domains(debug=False):
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        st.error("❌ Tranco file not found.")
+        if debug:
+            st.error("❌ Tranco file not found.")
         return {}
 
     try:
@@ -131,33 +132,37 @@ def load_tranco_top_domains():
             on_bad_lines="skip"
         )
 
-        # Debug: Show raw data shape and sample
-        st.write("🧪 Raw Tranco rows loaded:", df.shape)
-        st.write(df.head(5))  # Show top entries for inspection
+        if debug:
+            st.write("🧪 Raw Tranco rows loaded:", df.shape)
+            st.write(df.head(5))  # Show top entries for inspection
 
         # Attempt to convert Rank to numeric values
         df["Rank"] = pd.to_numeric(df["Rank"], errors="coerce")
-        st.write("✅ Valid 'Rank' entries after coercion:", df["Rank"].notna().sum())
+        if debug:
+            st.success(f"✅ Valid 'Rank' entries after coercion: {df['Rank'].notna().sum():,}")
 
         df.dropna(subset=["Rank"], inplace=True)
         df["Rank"] = df["Rank"].astype(int)
 
         # Filter domains under the rank threshold
         df = df[df["Rank"] <= TRANCO_THRESHOLD]
-        st.write("📉 Domains under threshold:", df.shape)
+        if debug:
+            st.info(f"📉 Domains under threshold: {TRANCO_THRESHOLD:,}, {df.shape}")
 
         if df.empty:
-            st.warning("⚠️ Tranco file loaded but no valid data found under the rank threshold.")
+            if debug:
+                st.warning("⚠️ Tranco file loaded but no valid data found under the rank threshold.")
             return {}
 
         # Convert to dict for fast lookup
         return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
     except Exception as e:
-        st.error(f"❌ Error reading Tranco CSV: {e}")
+        if debug:
+            st.error(f"❌ Error reading Tranco CSV: {e}")
         return {}
 
-# Load Tranco rankings
+# Load Tranco rankings (normal silent mode)
 tranco_rankings = load_tranco_top_domains()
 
 if not tranco_rankings:
