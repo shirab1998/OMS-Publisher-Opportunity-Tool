@@ -300,7 +300,8 @@ if st.button("🔍 Find Monetization Opportunities"):
 
                 # --- SAVE RESULTS TO SESSION ---
                 df_results = pd.DataFrame(results)
-                df_results.sort_values("Tranco Rank", inplace=True)
+                if "Tranco Rank" in df_results.columns:
+                    df_results.sort_values("Tranco Rank", inplace=True)
                 st.session_state.opportunities_table = df_results
 
                 key = f"{(pub_name or 'Manual')}_{pub_id}"
@@ -336,7 +337,10 @@ if not st.session_state.opportunities_table.empty:
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
     styled_df = st.session_state.opportunities_table.copy()
-    styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
+    if "Tranco Rank" in styled_df.columns:
+        styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
+    else:
+        styled_df["Highlight"] = False
     styled_df_display = styled_df.drop(columns=["Highlight"])
 
     st.dataframe(
