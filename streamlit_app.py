@@ -250,8 +250,6 @@ if st.button("🔍 Find Monetization Opportunities"):
                 progress = st.progress(0)
                 progress_text = st.empty()
 
-                results = []
-
                 for idx, domain in enumerate(domains, start=1):
                     try:
                         ads_url = f"https://{domain}/ads.txt"
@@ -276,24 +274,20 @@ if st.button("🔍 Find Monetization Opportunities"):
                         is_oms_buyer = any(
                             "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
                             for line in ads_lines
-                            )
+                        )
 
                         if domain.lower() not in tranco_rankings:
                             st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
                             continue
 
                         rank = tranco_rankings[domain.lower()]
-                        if isinstance(rank, int) and rank > 0:
-                            results.append({
-                                "Domain": domain,
-                                "Tranco Rank": rank,
-                                "OMS Buying": "Yes" if is_oms_buyer else "No"
-                            })
-                        else:
-                            st.session_state.skipped_log.append((domain, "Invalid Tranco Rank"))
-
+                        results.append({
+                            "Domain": domain,
+                            "Tranco Rank": rank,
+                            "OMS Buying": "Yes" if is_oms_buyer else "No"
+                        })
                         time.sleep(0.1)
-                
+
                     except requests.exceptions.SSLError:
                         st.session_state.skipped_log.append((domain, "⚠️ SSL Error: The site has an expired or invalid HTTPS certificate."))
                     except requests.exceptions.RequestException as e:
@@ -304,14 +298,9 @@ if st.button("🔍 Find Monetization Opportunities"):
                     progress.progress(idx / len(domains))
                     progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
-                if not results:
-                    st.error("No valid monetization opportunities found. All domains were skipped or filtered out.")
-                    st.stop()
-
                 # --- SAVE RESULTS TO SESSION ---
                 df_results = pd.DataFrame(results)
-                if "Tranco Rank" in df_results.columns:
-                    df_results.sort_values("Tranco Rank", inplace=True)
+                df_results.sort_values("Tranco Rank", inplace=True)
                 st.session_state.opportunities_table = df_results
 
                 key = f"{(pub_name or 'Manual')}_{pub_id}"
@@ -347,10 +336,7 @@ if not st.session_state.opportunities_table.empty:
     st.markdown(f"📊 **{total + skipped} domains scanned** | ✅ {total} opportunities found | ⛔ {skipped} skipped")
 
     styled_df = st.session_state.opportunities_table.copy()
-    if "Tranco Rank" in styled_df.columns:
-        styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
-    else:
-        styled_df["Highlight"] = False
+    styled_df["Highlight"] = styled_df["Tranco Rank"] <= 50000
     styled_df_display = styled_df.drop(columns=["Highlight"])
 
     st.dataframe(
