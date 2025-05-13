@@ -308,6 +308,29 @@ if st.button("🔍 Find Monetization Opportunities"):
                     st.error("No valid monetization opportunities found. All domains were skipped or filtered out.")
                     st.stop()
 
+                # --- SAVE RESULTS TO SESSION ---
+                df_results = pd.DataFrame(results)
+                if "Tranco Rank" in df_results.columns:
+                    df_results.sort_values("Tranco Rank", inplace=True)
+                st.session_state.opportunities_table = df_results
+
+                key = f"{(pub_name or 'Manual')}_{pub_id}"
+                st.session_state.setdefault("history", {})
+                st.session_state["history"][key] = {
+                    "name": pub_name or "Manual Domains",
+                    "id": pub_id,
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "table": df_results.copy()
+                }
+
+                progress.empty()
+                progress_text.empty()
+                st.success("✅ Analysis complete")
+                st.balloons()
+
+            except Exception as e:
+                st.error(f"Error while processing: {e}")
+
 # --- RESULTS DISPLAY ---
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
 
