@@ -113,14 +113,38 @@ with st.sidebar:
                 )
                 st.stop()
 
-
 # --- TRANCO LOADING ---
 @st.cache_data
 def load_tranco_top_domains(debug=False):
+    def fallback_download_latest():
+        try:
+            # Get today's Tranco list ID from Mozilla method (stable and consistent)
+            today = datetime.now().strftime("%Y-%m-%d")
+            id_url = f"https://tranco-list.eu/list/MOZILLA/{today}/"
+            list_response = requests.get(id_url, allow_redirects=True)
+            match = re.search(r"/list/([a-zA-Z0-9]{5,})/", list_response.url)
+            if not match:
+                return False
+            tranco_id = match.group(1)
+            download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
+            response = requests.get(download_url)
+            if response.status_code == 200:
+                with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                    f.write(response.content)
+                save_tranco_meta(tranco_id)
+                return True
+        except Exception as e:
+            if debug:
+                st.error(f"⚠️ Auto-download failed: {e}")
+        return False
+
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         if debug:
-            st.error("❌ Tranco file not found.")
-        return {}
+            st.warning("🔍 Tranco file missing — attempting automatic download...")
+        if not fallback_download_latest():
+            if debug:
+                st.error("❌ Failed to auto-download Tranco list.")
+            return {}
 
     try:
         # Load raw CSV with no header; manually assign column names
@@ -136,7 +160,7 @@ def load_tranco_top_domains(debug=False):
             st.write("🧪 Raw Tranco rows loaded:", df.shape)
             st.write(df.head(5))  # Show top entries for inspection
 
-        # Attempt to convert Rank to numeric values
+        # Convert Rank to numeric values
         df["Rank"] = pd.to_numeric(df["Rank"], errors="coerce")
         if debug:
             st.success(f"✅ Valid 'Rank' entries after coercion: {df['Rank'].notna().sum():,}")
@@ -144,17 +168,16 @@ def load_tranco_top_domains(debug=False):
         df.dropna(subset=["Rank"], inplace=True)
         df["Rank"] = df["Rank"].astype(int)
 
-        # Filter domains under the rank threshold
+        # Filter domains under the threshold
         df = df[df["Rank"] <= TRANCO_THRESHOLD]
         if debug:
-            st.info(f"📉 Domains under threshold: {TRANCO_THRESHOLD:,}, {df.shape}")
+            st.info(f"📉 Domains under threshold ({TRANCO_THRESHOLD:,}): {df.shape[0]:,}")
 
         if df.empty:
             if debug:
-                st.warning("⚠️ Tranco file loaded but no valid data found under the rank threshold.")
+                st.warning("⚠️ Tranco file loaded but no valid data found.")
             return {}
 
-        # Convert to dict for fast lookup
         return dict(zip(df["Domain"].str.lower(), df["Rank"]))
 
     except Exception as e:
@@ -169,6 +192,7 @@ if not tranco_rankings:
     st.warning("⚠️ Tranco list may not have loaded properly or is empty. Domains will be skipped if they can't be ranked.")
 else:
     st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
+
 
 # --- INPUT SECTION ---
 pub_domain = ""
