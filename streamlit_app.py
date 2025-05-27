@@ -112,7 +112,6 @@ with st.sidebar:
                     use_container_width=True
                 )
                 st.stop()
-
 # --- TRANCO LOADING ---
 @st.cache_data
 def load_tranco_top_domains(debug=False):
@@ -138,6 +137,7 @@ def load_tranco_top_domains(debug=False):
                 st.error(f"⚠️ Auto-download failed: {e}")
         return False
 
+    # If file doesn't exist locally, attempt auto-download
     if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
         if debug:
             st.warning("🔍 Tranco file missing — attempting automatic download...")
@@ -147,7 +147,7 @@ def load_tranco_top_domains(debug=False):
             return {}
 
     try:
-        # Load raw CSV with no header; manually assign column names
+        # Read CSV with no header, assign column names manually
         df = pd.read_csv(
             TRANCO_TOP_DOMAINS_FILE,
             names=["Rank", "Domain"],
@@ -156,42 +156,26 @@ def load_tranco_top_domains(debug=False):
             on_bad_lines="skip"
         )
 
-        if debug:
-            st.write("🧪 Raw Tranco rows loaded:", df.shape)
-            st.write(df.head(5))  # Show top entries for inspection
-
-        # Convert Rank to numeric values
+        df.dropna(inplace=True)
         df["Rank"] = pd.to_numeric(df["Rank"], errors="coerce")
-        if debug:
-            st.success(f"✅ Valid 'Rank' entries after coercion: {df['Rank'].notna().sum():,}")
-
-        df.dropna(subset=["Rank"], inplace=True)
+        df.dropna(subset=["Rank", "Domain"], inplace=True)
         df["Rank"] = df["Rank"].astype(int)
+        df["Domain"] = df["Domain"].str.strip().str.lower()
 
-        # Filter domains under the threshold
         df = df[df["Rank"] <= TRANCO_THRESHOLD]
-        if debug:
-            st.info(f"📉 Domains under threshold ({TRANCO_THRESHOLD:,}): {df.shape[0]:,}")
 
         if df.empty:
             if debug:
-                st.warning("⚠️ Tranco file loaded but no valid data found.")
+                st.warning("⚠️ Tranco data loaded but no valid domains under threshold.")
             return {}
 
-        return dict(zip(df["Domain"].str.lower(), df["Rank"]))
+        return dict(zip(df["Domain"], df["Rank"]))
 
     except Exception as e:
         if debug:
-            st.error(f"❌ Error reading Tranco CSV: {e}")
+            st.error(f"❌ Failed to load or process Tranco CSV: {e}")
         return {}
 
-# Load Tranco rankings (normal silent mode)
-tranco_rankings = load_tranco_top_domains()
-
-if not tranco_rankings:
-    st.warning("⚠️ Tranco list may not have loaded properly or is empty. Domains will be skipped if they can't be ranked.")
-else:
-    st.info("✅ Tranco list loaded and ready. You can proceed with domain analysis.")
 
 
 # --- INPUT SECTION ---
