@@ -225,132 +225,137 @@ if st.button("🔍 Find Monetization Opportunities"):
         st.error("Publisher ID and Example Direct Line are required.")
     else:
         with st.spinner("🔎 Checking domains..."):
-            try:
-                st.session_state.skipped_log = []
-                results = []
-                domains = set()
+            # ✅ Ensure tranco_rankings is always defined
+            tranco_rankings = load_tranco_top_domains()
 
-                # --- DOMAIN EXTRACTION LOGIC BY MODE ---
-                if mode == "Manual Domains":
-                    manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
-                    domains = {d.strip().lower() for d in manual_lines if d.strip()}
+            st.session_state.skipped_log = []
+            results = []
+            domains = set()
 
-                elif mode == "Paste sellers.json":
-                    try:
-                        data = json.loads(sellersjson_input)
+            # --- DOMAIN EXTRACTION LOGIC BY MODE ---
+            if mode == "Manual Domains":
+                manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
+                domains = {d.strip().lower() for d in manual_lines if d.strip()}
+
+            elif mode == "Paste sellers.json":
+                try:
+                    data = json.loads(sellersjson_input)
+                    domains = {
+                        s.get("domain").strip().lower()
+                        for s in data.get("sellers", [])
+                        if s.get("domain")
+                    }
+                except Exception as e:
+                    st.error(f"Failed to parse sellers.json: {e}")
+                    st.stop()
+
+            else:  # Live mode
+                sellers_url = f"https://{pub_domain}/sellers.json"
+                try:
+                    sellers_response = requests.get(sellers_url, timeout=10)
+                    sellers_data = sellers_response.json()
+                    if "sellers" in sellers_data:
                         domains = {
-                            s.get("domain").strip().lower()
-                            for s in data.get("sellers", [])
-                            if s.get("domain")
+                            s.get("domain").lower()
+                            for s in sellers_data["sellers"]
+                            if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
                         }
-                    except Exception as e:
-                        st.error(f"Failed to parse sellers.json: {e}")
-                        st.stop()
-
-                else:  # Live mode
-                    sellers_url = f"https://{pub_domain}/sellers.json"
-                    try:
-                        sellers_response = requests.get(sellers_url, timeout=10)
-                        sellers_data = sellers_response.json()
-                        if "sellers" in sellers_data:
-                            domains = {
-                                s.get("domain").lower()
-                                for s in sellers_data["sellers"]
-                                if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
-                            }
-                        else:
-                            st.warning("No sellers field in sellers.json. Provide manual domains if needed.")
-                    except Exception:
-                        st.error(f"Invalid sellers.json at {sellers_url}")
-                        st.stop()
-
-                if not domains:
-                    st.error("No valid domains found to check.")
+                    else:
+                        st.warning("No sellers field in sellers.json. Provide manual domains if needed.")
+                except Exception:
+                    st.error(f"Invalid sellers.json at {sellers_url}")
                     st.stop()
 
-                # --- ANALYSIS ---
-                progress = st.progress(0)
-                progress_text = st.empty()
+            if not domains:
+                st.error("No valid domains found to check.")
+                st.stop()
 
-                for idx, domain in enumerate(domains, start=1):
-                    try:
-                        ads_url = f"https://{domain}/ads.txt"
-                        ads_response = requests.get(ads_url, timeout=10)
-                        ads_lines = ads_response.text.splitlines()
+            # --- ANALYSIS ---
+            progress = st.progress(0)
+            progress_text = st.empty()
 
-                        has_direct = any(
-                            sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower()
-                            for line in ads_lines
-                        )
-                        if not has_direct:
-                            st.session_state.skipped_log.append((domain, "No direct line for publisher"))
-                            continue
+            for idx, domain in enumerate(domains, start=1):
+                try:
+                    ads_url = f"https://{domain}/ads.txt"
+                    ads_response = requests.get(ads_url, timeout=10)
+                    ads_lines = ads_response.text.splitlines()
 
-                        if any(
-                            "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
-                            for line in ads_lines
-                        ):
-                            st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
-                            continue
+                    has_direct = any(
+                        sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower()
+                        for line in ads_lines
+                    )
+                    if not has_direct:
+                        st.session_state.skipped_log.append((domain, "No direct line for publisher"))
+                        continue
 
-                        is_oms_buyer = any(
-                            "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
-                            for line in ads_lines
-                        )
+                    if any(
+                        "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
+                        for line in ads_lines
+                    ):
+                        st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
+                        continue
 
-                        if domain.lower() not in tranco_rankings:
-                            st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
-                            continue
+                    is_oms_buyer = any(
+                        "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
+                        for line in ads_lines
+                    )
 
-                        rank = tranco_rankings[domain.lower()]
-                        results.append({
-                            "Domain": domain,
-                            "Tranco Rank": int(rank),
-                            "OMS Buying": "Yes" if is_oms_buyer else "No"
-                        })
+                    if domain.lower() not in tranco_rankings:
+                        st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                        continue
 
-                        time.sleep(0.1)
+                    rank = tranco_rankings[domain.lower()]
+                    results.append({
+                        "Domain": domain,
+                        "Tranco Rank": int(rank),
+                        "OMS Buying": "Yes" if is_oms_buyer else "No"
+                    })
 
-                    except requests.exceptions.SSLError:
-                        st.session_state.skipped_log.append((domain, "⚠️ SSL Error: The site has an expired or invalid HTTPS certificate."))
-                    except requests.exceptions.RequestException as e:
-                        st.session_state.skipped_log.append((domain, f"⚠️ Connection Error: {e}"))
-                    except Exception as e:
-                        st.session_state.skipped_log.append((domain, f"⚠️ Unexpected Error: {str(e)}"))
+                    time.sleep(0.1)
 
-                    progress.progress(idx / len(domains))
-                    progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
+                except requests.exceptions.SSLError:
+                    st.session_state.skipped_log.append((domain, "⚠️ SSL Error: The site has an expired or invalid HTTPS certificate."))
+                except requests.exceptions.RequestException as e:
+                    st.session_state.skipped_log.append((domain, f"⚠️ Connection Error: {e}"))
+                except Exception as e:
+                    st.session_state.skipped_log.append((domain, f"⚠️ Unexpected Error: {str(e)}"))
 
-                # --- SAVE RESULTS TO SESSION ---
-                if not results:
-                    st.error("⚠️ No valid monetization opportunities were found.")
-                    st.stop()
+                progress.progress(idx / len(domains))
+                progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
-                df_results = pd.DataFrame(results)
+            # --- SAVE RESULTS TO SESSION ---
+            if not results:
+                st.error("⚠️ No valid monetization opportunities were found.")
+                st.stop()
 
-                if "Tranco Rank" not in df_results.columns:
-                    st.error("⚠️ Unexpected error: 'Tranco Rank' column missing from results.")
-                    st.stop()
+            df_results = pd.DataFrame(results)
 
-                df_results.sort_values("Tranco Rank", inplace=True)
-                st.session_state.opportunities_table = df_results
+            if "Tranco Rank" not in df_results.columns:
+                st.error("⚠️ Unexpected error: 'Tranco Rank' column missing from results.")
+                st.stop()
 
-                key = f"{(pub_name or 'Manual')}_{pub_id}"
-                st.session_state.setdefault("history", {})
-                st.session_state["history"][key] = {
-                    "name": pub_name or "Manual Domains",
-                    "id": pub_id,
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "table": df_results.copy()
-                }
+            df_results.sort_values("Tranco Rank", inplace=True)
+            st.session_state.opportunities_table = df_results
 
-                progress.empty()
-                progress_text.empty()
-                st.success("✅ Analysis complete")
-                st.balloons()
+            key = f"{(pub_name or 'Manual')}_{pub_id}"
+            st.session_state.setdefault("history", {})
+            st.session_state["history"][key] = {
+                "name": pub_name or "Manual Domains",
+                "id": pub_id,
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "table": df_results.copy()
+            }
 
-            except Exception as e:
-                st.error(f"Error while processing: {e}")
+            progress.empty()
+            progress_text.empty()
+            st.success("✅ Analysis complete")
+            st.balloons()
+
+        # top-level try/catch
+        try:
+            pass  # domain analysis already handled
+        except Exception as e:
+            st.error(f"Error while processing: {e}")
 
 # --- RESULTS DISPLAY ---
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
