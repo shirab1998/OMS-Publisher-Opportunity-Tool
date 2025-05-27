@@ -176,8 +176,6 @@ def load_tranco_top_domains(debug=False):
             st.error(f"❌ Failed to load or process Tranco CSV: {e}")
         return {}
 
-
-
 # --- INPUT SECTION ---
 pub_domain = ""
 pub_name = ""
@@ -307,9 +305,10 @@ if st.button("🔍 Find Monetization Opportunities"):
                         rank = tranco_rankings[domain.lower()]
                         results.append({
                             "Domain": domain,
-                            "Tranco Rank": rank,
+                            "Tranco Rank": int(rank),
                             "OMS Buying": "Yes" if is_oms_buyer else "No"
                         })
+
                         time.sleep(0.1)
 
                     except requests.exceptions.SSLError:
@@ -323,7 +322,16 @@ if st.button("🔍 Find Monetization Opportunities"):
                     progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
                 # --- SAVE RESULTS TO SESSION ---
+                if not results:
+                    st.error("⚠️ No valid monetization opportunities were found.")
+                    st.stop()
+
                 df_results = pd.DataFrame(results)
+
+                if "Tranco Rank" not in df_results.columns:
+                    st.error("⚠️ Unexpected error: 'Tranco Rank' column missing from results.")
+                    st.stop()
+
                 df_results.sort_values("Tranco Rank", inplace=True)
                 st.session_state.opportunities_table = df_results
 
