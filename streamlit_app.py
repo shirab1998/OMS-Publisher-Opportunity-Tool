@@ -225,7 +225,7 @@ if st.button("🔍 Find Monetization Opportunities"):
         st.error("Publisher ID and Example Direct Line are required.")
     else:
         with st.spinner("🔎 Checking domains..."):
-            # ✅ Ensure tranco_rankings is always defined
+            # ✅ Make sure tranco_rankings is defined in this scope
             tranco_rankings = load_tranco_top_domains()
 
             st.session_state.skipped_log = []
@@ -351,11 +351,6 @@ if st.button("🔍 Find Monetization Opportunities"):
             st.success("✅ Analysis complete")
             st.balloons()
 
-        # top-level try/catch
-        try:
-            pass  # domain analysis already handled
-        except Exception as e:
-            st.error(f"Error while processing: {e}")
 
 # --- RESULTS DISPLAY ---
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
