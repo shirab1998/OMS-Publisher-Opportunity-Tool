@@ -40,7 +40,6 @@ def is_recent(date_str):
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
 st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
-
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("\U0001F310 Tranco List")
@@ -61,6 +60,23 @@ with st.sidebar:
         st.session_state["show_input"] = True
         show_input = True
 
+    # --- TRANCO MANUAL FILE UPLOAD ---
+    uploaded_file = st.file_uploader("📁 Upload Tranco CSV (as fallback)", type=["csv"])
+    if uploaded_file:
+        try:
+            # Attempt to read the uploaded CSV to validate structure
+            df_check = pd.read_csv(uploaded_file, names=["Rank", "Domain"], header=None)
+            if df_check.shape[1] >= 2 and pd.api.types.is_numeric_dtype(pd.to_numeric(df_check["Rank"], errors="coerce")):
+                with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                save_tranco_meta("manual_upload", source="manual")
+                st.success("✅ Uploaded and saved Tranco list successfully.")
+            else:
+                st.error("Uploaded file format is invalid. Expected 2-column CSV with Rank and Domain.")
+        except Exception as e:
+            st.error(f"Failed to process uploaded file: {e}")
+    # --- END TRANCO MANUAL FILE UPLOAD ---
+
     if show_input:
         st.markdown("[Visit Tranco list site](https://tranco-list.eu/) to get a link")
         st.text_input("Paste Tranco List URL", key="tranco_url")
@@ -77,7 +93,7 @@ with st.sidebar:
                     if response.status_code == 200:
                         with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
                             f.write(response.content)
-                        save_tranco_meta(tranco_id)
+                        save_tranco_meta(tranco_id, source="download")
                         st.success(f"✅ Downloaded Tranco list (ID: {tranco_id})")
                         st.session_state["show_input"] = False
                         show_input = False
@@ -130,15 +146,27 @@ def load_tranco_top_domains(debug=False):
             if response.status_code == 200:
                 with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
                     f.write(response.content)
-                save_tranco_meta(tranco_id)
+                save_tranco_meta(tranco_id, source="download")
                 return True
         except Exception as e:
             if debug:
                 st.error(f"⚠️ Auto-download failed: {e}")
         return False
 
-    # If file doesn't exist locally, attempt auto-download
-    if not os.path.exists(TRANCO_TOP_DOMAINS_FILE):
+    meta = get_tranco_meta()
+
+    # --- NEW: Manual or recent fallback logic ---
+    if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
+        if meta and is_recent(meta.get("timestamp", "")):
+            if debug:
+                st.info(f"✅ Using recent Tranco file from source: {meta.get('source', 'unknown')}")
+        else:
+            if debug:
+                st.warning("📁 Local Tranco file is outdated — trying fallback download...")
+            if not fallback_download_latest():
+                if debug:
+                    st.warning("⚠️ Proceeding with outdated local file.")
+    else:
         if debug:
             st.warning("🔍 Tranco file missing — attempting automatic download...")
         if not fallback_download_latest():
@@ -175,7 +203,6 @@ def load_tranco_top_domains(debug=False):
         if debug:
             st.error(f"❌ Failed to load or process Tranco CSV: {e}")
         return {}
-
 # --- INPUT SECTION ---
 pub_domain = ""
 pub_name = ""
