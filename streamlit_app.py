@@ -43,22 +43,6 @@ st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("\U0001F310 Tranco List")
-    meta = get_tranco_meta()
-    show_input = st.session_state.get("show_input", False)
-
-    if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
-        updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
-        if is_recent(meta.get("timestamp", "")):
-            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: green;'>Last updated: {updated_time}</span></div>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: orange;'>Last updated: {updated_time} ⬤ Might be outdated</span></div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<div style='font-size: 85%; color: red; margin-bottom: 0.75em;'>⚠️ Tranco list not found. Please paste a Tranco list URL below.</div>", unsafe_allow_html=True)
-        show_input = True
-
-    if st.button("🔁 Manually Update Tranco List"):
-        st.session_state["show_input"] = True
-        show_input = True
 
     # --- TRANCO MANUAL FILE UPLOAD ---
     uploaded_file = st.file_uploader("📁 Upload Tranco CSV (as fallback)", type=["csv"])
@@ -76,6 +60,24 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Failed to process uploaded file: {e}")
     # --- END TRANCO MANUAL FILE UPLOAD ---
+
+    meta = get_tranco_meta()
+    show_input = st.session_state.get("show_input", False)
+
+    if os.path.exists(TRANCO_TOP_DOMAINS_FILE) and meta:
+        updated_time = datetime.fromtimestamp(os.path.getmtime(TRANCO_TOP_DOMAINS_FILE)).strftime('%Y-%m-%d %H:%M:%S')
+        if is_recent(meta.get("timestamp", "")):
+            source_icon = "🛠️" if meta.get("source") == "manual" else "🔄"
+            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: green;'>{source_icon} Last updated: {updated_time}</span></div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div style='font-size: 85%; margin-bottom: 0.75em;'><span style='color: orange;'>Last updated: {updated_time} ⬤ Might be outdated</span></div>", unsafe_allow_html=True)
+    else:
+        st.markdown("<div style='font-size: 85%; color: red; margin-bottom: 0.75em;'>⚠️ Tranco list not found. Please paste a Tranco list URL below or upload a CSV.</div>", unsafe_allow_html=True)
+        show_input = True
+
+    if st.button("🔁 Manually Update Tranco List"):
+        st.session_state["show_input"] = True
+        show_input = True
 
     if show_input:
         st.markdown("[Visit Tranco list site](https://tranco-list.eu/) to get a link")
