@@ -23,10 +23,11 @@ def get_tranco_meta():
             return json.load(f)
     return None
 
-def save_tranco_meta(tranco_id):
+def save_tranco_meta(tranco_id, source="download"):
     with open(TRANCO_META_FILE, "w") as f:
         json.dump({
             "id": tranco_id,
+            "source": source,
             "timestamp": datetime.now().isoformat()
         }, f)
 
