@@ -212,6 +212,7 @@ def load_tranco_top_domains(debug=False):
         if debug:
             st.error(f"❌ Failed to load or process Tranco CSV: {e}")
         return {}
+
 # --- INPUT SECTION ---
 pub_domain = ""
 pub_name = ""
