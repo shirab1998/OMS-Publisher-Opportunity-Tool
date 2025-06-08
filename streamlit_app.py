@@ -40,26 +40,10 @@ def is_recent(date_str):
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
 st.title("\U0001F4A1 Publisher Monetization Opportunity Finder")
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("\U0001F310 Tranco List")
-
-    # --- TRANCO MANUAL FILE UPLOAD ---
-    uploaded_file = st.file_uploader("📁 Upload Tranco CSV (as fallback)", type=["csv"])
-    if uploaded_file:
-        try:
-            # Attempt to read the uploaded CSV to validate structure
-            df_check = pd.read_csv(uploaded_file, names=["Rank", "Domain"], header=None)
-            if df_check.shape[1] >= 2 and pd.api.types.is_numeric_dtype(pd.to_numeric(df_check["Rank"], errors="coerce")):
-                with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                save_tranco_meta("manual_upload", source="manual")
-                st.success("✅ Uploaded and saved Tranco list successfully.")
-            else:
-                st.error("Uploaded file format is invalid. Expected 2-column CSV with Rank and Domain.")
-        except Exception as e:
-            st.error(f"Failed to process uploaded file: {e}")
-    # --- END TRANCO MANUAL FILE UPLOAD ---
 
     meta = get_tranco_meta()
     show_input = st.session_state.get("show_input", False)
@@ -82,6 +66,7 @@ with st.sidebar:
     if show_input:
         st.markdown("[Visit Tranco list site](https://tranco-list.eu/) to get a link")
         st.text_input("Paste Tranco List URL", key="tranco_url")
+
         if st.button("\U0001F4E5 Download Tranco List"):
             url = st.session_state.get("tranco_url", "")
             match = re.search(r"/list/([a-zA-Z0-9]{5,})/", url)
@@ -104,6 +89,26 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error downloading Tranco list: {e}")
 
+        st.markdown("**Or upload a local copy instead:**")
+
+        # --- TRANCO MANUAL FILE UPLOAD ---
+        uploaded_file = st.file_uploader("📁 Upload Tranco CSV", type=["csv"])
+        if uploaded_file:
+            try:
+                df_check = pd.read_csv(uploaded_file, names=["Rank", "Domain"], header=None)
+                if df_check.shape[1] >= 2 and pd.api.types.is_numeric_dtype(pd.to_numeric(df_check["Rank"], errors="coerce")):
+                    with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    save_tranco_meta("manual_upload", source="manual")
+                    st.success("✅ Uploaded and saved Tranco list successfully.")
+                    st.session_state["show_input"] = False
+                    show_input = False
+                else:
+                    st.error("Uploaded file format is invalid. Expected 2-column CSV with Rank and Domain.")
+            except Exception as e:
+                st.error(f"Failed to process uploaded file: {e}")
+        # --- END TRANCO MANUAL FILE UPLOAD ---
+
     st.markdown("---")
     st.subheader("\U0001F553 Recent Publishers")
     if "history" in st.session_state:
@@ -119,7 +124,7 @@ with st.sidebar:
                 if "Tranco Rank" in styled.columns:
                     styled["Highlight"] = styled["Tranco Rank"] <= 50000
                 else:
-                    styled["Highlight"] = False  # or skip highlighting entirely
+                    styled["Highlight"] = False
 
                 styled_display = styled.drop(columns=["Highlight"])
                 st.dataframe(
@@ -130,6 +135,8 @@ with st.sidebar:
                     use_container_width=True
                 )
                 st.stop()
+
+
 # --- TRANCO LOADING ---
 @st.cache_data
 def load_tranco_top_domains(debug=False):
