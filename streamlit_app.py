@@ -1,4 +1,4 @@
-#debugged code to fix the ranking issue ----
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -225,7 +225,7 @@ sellersjson_input = ""
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    mode = st.radio("Select Input Mode", ["Live (from domain)", "Manual Domains", "Paste sellers.json"])
+    mode = st.radio("Select Input Mode", ["Live (from domain)", "Manual Domains", "Paste sellers.json", "Top Domains (from Tranco)"])
 
 # Handle invalid dual-mode selection
     if mode == "Live (from domain)":
@@ -245,6 +245,13 @@ if "opportunities_table" not in st.session_state or st.session_state.opportuniti
         pub_domain = ""
         pub_name = ""
         manual_domains_input = ""
+        
+    elif mode == "Top Domains (from Tranco)":
+    st.info("Top Domains Mode: Uses top 50K domains from the Tranco list.")
+    manual_domains_input = ""
+    sellersjson_input = ""
+    pub_domain = ""
+    pub_name = ""
 
 pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
 sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
@@ -286,6 +293,10 @@ if st.button("🔍 Find Monetization Opportunities"):
                 except Exception as e:
                     st.error(f"Failed to parse sellers.json: {e}")
                     st.stop()
+
+            elif mode == "Top Domains (from Tranco)":
+                tranco_dict = load_tranco_top_domains()
+                domains = set(list(tranco_dict.keys())[:50000])
 
             else:  # Live mode
                 sellers_url = f"https://{pub_domain}/sellers.json"
@@ -375,10 +386,10 @@ if st.button("🔍 Find Monetization Opportunities"):
             df_results.sort_values("Tranco Rank", inplace=True)
             st.session_state.opportunities_table = df_results
 
-            key = f"{(pub_name or 'Manual')}_{pub_id}"
+            key = f"{(pub_name or mode)}_{pub_id}"
             st.session_state.setdefault("history", {})
             st.session_state["history"][key] = {
-                "name": pub_name or "Manual Domains",
+                "name": pub_name or mode,
                 "id": pub_id,
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "table": df_results.copy()
@@ -388,7 +399,6 @@ if st.button("🔍 Find Monetization Opportunities"):
             progress_text.empty()
             st.success("✅ Analysis complete")
             st.balloons()
-
 
 # --- RESULTS DISPLAY ---
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
