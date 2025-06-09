@@ -278,14 +278,10 @@ if st.button("🔍 Find Monetization Opportunities"):
         st.error("Publisher ID and Example Direct Line are required.")
     else:
         with st.spinner("🔎 Checking domains..."):
-            # ✅ Make sure tranco_rankings is defined in this scope
-            tranco_rankings = load_tranco_top_domains()
-
             st.session_state.skipped_log = []
             results = []
             domains = set()
 
-            # --- DOMAIN EXTRACTION LOGIC BY MODE ---
             if mode == "Manual Domains":
                 manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
                 domains = {d.strip().lower() for d in manual_lines if d.strip()}
@@ -304,9 +300,33 @@ if st.button("🔍 Find Monetization Opportunities"):
 
             elif mode == "Top Domains (from Tranco)":
                 tranco_dict = load_tranco_top_domains()
-                domains = set(list(tranco_dict.keys())[:50000])
+                sorted_domains = sorted(tranco_dict.items(), key=lambda x: x[1])
+                domains = [d for d, _ in sorted_domains[:50000]]
 
-            else:  # Live mode
+                # Use concurrent scanner just for this mode
+                df_results, skipped = concurrent_ads_scan(domains, pub_id, sample_direct_line)
+
+                if df_results.empty:
+                    st.error("⚠️ No valid monetization opportunities were found.")
+                    st.stop()
+
+                st.session_state.opportunities_table = df_results
+                st.session_state.skipped_log = skipped
+
+                key = f"{(pub_name or mode)}_{pub_id}"
+                st.session_state.setdefault("history", {})
+                st.session_state["history"][key] = {
+                    "name": pub_name or mode,
+                    "id": pub_id,
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "table": df_results.copy()
+                }
+
+                st.success("✅ Analysis complete")
+                st.balloons()
+                st.stop()
+
+            else:  # Live (from domain)
                 sellers_url = f"https://{pub_domain}/sellers.json"
                 try:
                     sellers_response = requests.get(sellers_url, timeout=10)
@@ -327,9 +347,11 @@ if st.button("🔍 Find Monetization Opportunities"):
                 st.error("No valid domains found to check.")
                 st.stop()
 
-            # --- ANALYSIS ---
+            # --- ANALYSIS for all modes except Top Domains ---
             progress = st.progress(0)
             progress_text = st.empty()
+
+            tranco_rankings = load_tranco_top_domains()
 
             for idx, domain in enumerate(domains, start=1):
                 try:
@@ -371,7 +393,7 @@ if st.button("🔍 Find Monetization Opportunities"):
                     time.sleep(0.1)
 
                 except requests.exceptions.SSLError:
-                    st.session_state.skipped_log.append((domain, "⚠️ SSL Error: The site has an expired or invalid HTTPS certificate."))
+                    st.session_state.skipped_log.append((domain, "⚠️ SSL Error"))
                 except requests.exceptions.RequestException as e:
                     st.session_state.skipped_log.append((domain, f"⚠️ Connection Error: {e}"))
                 except Exception as e:
@@ -380,17 +402,11 @@ if st.button("🔍 Find Monetization Opportunities"):
                 progress.progress(idx / len(domains))
                 progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
 
-            # --- SAVE RESULTS TO SESSION ---
             if not results:
                 st.error("⚠️ No valid monetization opportunities were found.")
                 st.stop()
 
             df_results = pd.DataFrame(results)
-
-            if "Tranco Rank" not in df_results.columns:
-                st.error("⚠️ Unexpected error: 'Tranco Rank' column missing from results.")
-                st.stop()
-
             df_results.sort_values("Tranco Rank", inplace=True)
             st.session_state.opportunities_table = df_results
 
