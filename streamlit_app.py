@@ -11,15 +11,44 @@ from email.message import EmailMessage
 import unicodedata
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
-def concurrent_ads_scan(domains, pub_id, sample_direct_line, batch_size=5000):
+import time
+import os
+import hashlib
+import pickle
+
+def concurrent_ads_scan(domains, pub_id, sample_direct_line, batch_size=5000, retry_failed=True, cache_dir="/tmp/ads_cache"):
+    os.makedirs(cache_dir, exist_ok=True)
     results = []
     skipped = []
 
+    def cache_path(domain):
+        return os.path.join(cache_dir, hashlib.md5(domain.encode()).hexdigest() + ".pkl")
+
+    def load_cached_ads(domain):
+        path = cache_path(domain)
+        if os.path.exists(path) and time.time() - os.path.getmtime(path) < 86400:  # 1 day TTL
+            try:
+                with open(path, "rb") as f:
+                    return pickle.load(f)
+            except:
+                pass
+        return None
+
+    def save_ads_to_cache(domain, lines):
+        try:
+            with open(cache_path(domain), "wb") as f:
+                pickle.dump(lines, f)
+        except:
+            pass
+
     def process(domain):
         try:
-            ads_url = f"https://{domain}/ads.txt"
-            ads_response = requests.get(ads_url, timeout=6)
-            ads_lines = ads_response.text.splitlines()
+            ads_lines = load_cached_ads(domain)
+            if not ads_lines:
+                ads_url = f"https://{domain}/ads.txt"
+                ads_response = requests.get(ads_url, timeout=6)
+                ads_lines = ads_response.text.splitlines()
+                save_ads_to_cache(domain, ads_lines)
 
             direct_key = sample_direct_line.split(",")[0].strip().lower()
             has_direct = any(direct_key in line.lower() and "direct" in line.lower() for line in ads_lines)
@@ -49,20 +78,47 @@ def concurrent_ads_scan(domains, pub_id, sample_direct_line, batch_size=5000):
     total = len(domains)
     batches = [domains[i:i + batch_size] for i in range(0, total, batch_size)]
 
+    total_batches = len(batches)
+    progress_bar = st.progress(0)
+    progress_text = st.empty()
+
     for b_idx, batch in enumerate(batches, start=1):
-        st.info(f"🔄 Scanning batch {b_idx} of {len(batches)} ({len(batch)} domains)")
+        start_time = time.time()
+
         with ThreadPoolExecutor(max_workers=40) as executor:
             futures = {executor.submit(process, domain): domain for domain in batch}
-            for i, future in enumerate(as_completed(futures), 1):
-                domain, error, result = future.result()
-                if error:
-                    skipped.append((domain, error))
-                elif result:
-                    results.append(result)
-                st.progress(i / len(batch), text=f"Checking {domain}")
+            for _ in as_completed(futures):
+                pass
+
+        pct = int((b_idx / total_batches) * 100)
+        elapsed = time.time() - start_time
+        eta = elapsed * (total_batches - b_idx)
+        progress_bar.progress(b_idx / total_batches)
+        progress_text.text(f"✅ Batch {b_idx}/{total_batches} complete — {pct}% done — ETA: {int(eta)} sec")
+
+        for future in futures:
+            domain, error, result = future.result()
+            if error:
+                skipped.append((domain, error))
+            elif result:
+                results.append(result)
+
+    # --- Retry Skipped (network/SSL errors only) ---
+    if retry_failed:
+        retriable = [d for d, reason in skipped if "SSL" in reason or "Connection" in reason]
+        if retriable:
+            st.info(f"🔁 Retrying {len(retriable)} skipped domains due to transient errors...")
+            with ThreadPoolExecutor(max_workers=30) as executor:
+                futures = {executor.submit(process, domain): domain for domain in retriable}
+                for future in as_completed(futures):
+                    domain, error, result = future.result()
+                    if error:
+                        skipped.append((domain, error))  # already there
+                    elif result:
+                        results.append(result)
+                        skipped = [entry for entry in skipped if entry[0] != domain]  # remove from skipped
 
     return pd.DataFrame(results), skipped
-
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
