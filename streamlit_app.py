@@ -225,36 +225,44 @@ sellersjson_input = ""
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    mode = st.radio("Select Input Mode", ["Live (from domain)", "Manual Domains", "Paste sellers.json", "Top Domains (from Tranco)"])
+    mode = st.radio("Select Input Mode", [
+        "Live (from domain)",
+        "Manual Domains",
+        "Paste sellers.json",
+        "Top Domains (from Tranco)"
+    ])
 
-# Handle invalid dual-mode selection
+    # Handle mode selection
     if mode == "Live (from domain)":
         pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
         pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
         manual_domains_input = ""
         sellersjson_input = ""
+
     elif mode == "Manual Domains":
         st.info("Manual Domains Mode: Paste domains manually.")
         manual_domains_input = st.text_area("Paste domains manually (comma or newline separated)", height=100)
         pub_domain = ""
         pub_name = ""
         sellersjson_input = ""
+
     elif mode == "Paste sellers.json":
         st.info("Paste sellers.json content.")
         sellersjson_input = st.text_area("Paste sellers.json content", height=200)
         pub_domain = ""
         pub_name = ""
         manual_domains_input = ""
-        
-    elif mode == "Top Domains (from Tranco)":
-    st.info("Top Domains Mode: Uses top 50K domains from the Tranco list.")
-    manual_domains_input = ""
-    sellersjson_input = ""
-    pub_domain = ""
-    pub_name = ""
 
-pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
-sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+    elif mode == "Top Domains (from Tranco)":
+        st.info("Top Domains Mode: Uses top 50K domains from the Tranco list.")
+        manual_domains_input = ""
+        sellersjson_input = ""
+        pub_domain = ""
+        pub_name = ""
+
+    pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
