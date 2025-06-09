@@ -1,4 +1,4 @@
-
+#debugged code to fix the ranking issue ----
 import streamlit as st
 import requests
 import pandas as pd
@@ -10,126 +10,12 @@ import smtplib
 from email.message import EmailMessage
 import unicodedata
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
-import os
-import hashlib
-import pickle
-
-def concurrent_ads_scan(domains, pub_id, sample_direct_line, batch_size=5000, retry_failed=True, cache_dir="/tmp/ads_cache"):
-    os.makedirs(cache_dir, exist_ok=True)
-    
-    domains = list(domains)  # ✅ Convert to list to support slicing
-    results = []
-    skipped = []
-
-    def cache_path(domain):
-        return os.path.join(cache_dir, hashlib.md5(domain.encode()).hexdigest() + ".pkl")
-
-    def load_cached_ads(domain):
-        path = cache_path(domain)
-        if os.path.exists(path) and time.time() - os.path.getmtime(path) < 86400:  # 1 day TTL
-            try:
-                with open(path, "rb") as f:
-                    return pickle.load(f)
-            except:
-                pass
-        return None
-
-    def save_ads_to_cache(domain, lines):
-        try:
-            with open(cache_path(domain), "wb") as f:
-                pickle.dump(lines, f)
-        except:
-            pass
-
-    def process(domain):
-        try:
-            ads_lines = load_cached_ads(domain)
-            if not ads_lines:
-                ads_url = f"https://{domain}/ads.txt"
-                ads_response = requests.get(ads_url, timeout=6)
-                ads_lines = ads_response.text.splitlines()
-                save_ads_to_cache(domain, ads_lines)
-
-            direct_key = sample_direct_line.split(",")[0].strip().lower()
-            has_direct = any(direct_key in line.lower() and "direct" in line.lower() for line in ads_lines)
-            if not has_direct:
-                return domain, "No direct line for publisher", None
-
-            is_oms_direct_with_pub = any(
-                "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
-                for line in ads_lines
-            )
-            if is_oms_direct_with_pub:
-                return domain, "OMS is already buying from this publisher", None
-
-            is_oms_buyer_other = any(
-                "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
-                for line in ads_lines
-            )
-
-            return domain, None, {
-                "Domain": domain,
-                "OMS Buying": "Yes" if is_oms_buyer_other else "No"
-            }
-
-        except requests.exceptions.SSLError:
-            return domain, "⚠️ SSL Error", None
-        except requests.exceptions.RequestException as e:
-            return domain, f"⚠️ Connection Error: {e}", None
-        except Exception as e:
-            return domain, f"⚠️ Unexpected Error: {str(e)}", None
-
-    total = len(domains)
-    batches = [domains[i:i + batch_size] for i in range(0, total, batch_size)]
-
-    total_batches = len(batches)
-    progress_bar = st.progress(0)
-    progress_text = st.empty()
-
-    for b_idx, batch in enumerate(batches, start=1):
-        start_time = time.time()
-
-        with ThreadPoolExecutor(max_workers=40) as executor:
-            futures = {executor.submit(process, domain): domain for domain in batch}
-            for _ in as_completed(futures):
-                pass
-
-        pct = int((b_idx / total_batches) * 100)
-        elapsed = time.time() - start_time
-        eta = elapsed * (total_batches - b_idx)
-        progress_bar.progress(b_idx / total_batches)
-        progress_text.text(f"✅ Batch {b_idx}/{total_batches} complete — {pct}% done — ETA: {int(eta)} sec")
-
-        for future in futures:
-            domain, error, result = future.result()
-            if error:
-                skipped.append((domain, error))
-            elif result:
-                results.append(result)
-
-    # --- Retry Skipped (network/SSL errors only) ---
-    if retry_failed:
-        retriable = [d for d, reason in skipped if "SSL" in reason or "Connection" in reason]
-        if retriable:
-            st.info(f"🔁 Retrying {len(retriable)} skipped domains due to transient errors...")
-            with ThreadPoolExecutor(max_workers=30) as executor:
-                futures = {executor.submit(process, domain): domain for domain in retriable}
-                for future in as_completed(futures):
-                    domain, error, result = future.result()
-                    if error:
-                        skipped.append((domain, error))  # already there
-                    elif result:
-                        results.append(result)
-                        skipped = [entry for entry in skipped if entry[0] != domain]  # remove from skipped
-
-    return pd.DataFrame(results), skipped
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
 TRANCO_META_FILE = "/tmp/tranco_meta.json"
 TRANCO_THRESHOLD = 210000
+
 # --- FUNCTIONS FOR TRANCO ---
 def get_tranco_meta():
     if os.path.exists(TRANCO_META_FILE):
@@ -151,124 +37,6 @@ def is_recent(date_str):
         return (datetime.now() - ts).days < 14
     except:
         return False
-
-@st.cache_data
-def load_tranco_top_domains(debug=False):
-    def fallback_download_latest():
-        try:
-            today = datetime.now().strftime("%Y-%m-%d")
-            id_url = f"https://tranco-list.eu/list/MOZILLA/{today}/"
-            list_response = requests.get(id_url, allow_redirects=True)
-            match = re.search(r"/list/([a-zA-Z0-9]{5,})/", list_response.url)
-            if not match:
-                return False
-            tranco_id = match.group(1)
-            download_url = f"https://tranco-list.eu/download/{tranco_id}/full"
-            response = requests.get(download_url)
-            if response.status_code == 200:
-                with open(TRANCO_TOP_DOMAINS_FILE, "wb") as f:
-                    f.write(response.content)
-                save_tranco_meta(tranco_id, source="download")
-                return True
-        except Exception as e:
-            if debug:
-                st.error(f"⚠️ Auto-download failed: {e}")
-        return False
-
-    meta = get_tranco_meta()
-
-    if os.path.exists(TRANCO_TOP_DOMAINS_FILE):
-        if meta and is_recent(meta.get("timestamp", "")):
-            if debug:
-                st.info(f"✅ Using recent Tranco file from source: {meta.get('source', 'unknown')}")
-        else:
-            if debug:
-                st.warning("📁 Local Tranco file is outdated — trying fallback download...")
-            if not fallback_download_latest():
-                if debug:
-                    st.warning("⚠️ Proceeding with outdated local file.")
-    else:
-        if debug:
-            st.warning("🔍 Tranco file missing — attempting automatic download...")
-        if not fallback_download_latest():
-            if debug:
-                st.error("❌ Failed to auto-download Tranco list.")
-            return {}
-
-    try:
-        df = pd.read_csv(
-            TRANCO_TOP_DOMAINS_FILE,
-            names=["Rank", "Domain"],
-            header=None,
-            encoding="utf-8",
-            on_bad_lines="skip"
-        )
-
-        df.dropna(inplace=True)
-        df["Rank"] = pd.to_numeric(df["Rank"], errors="coerce")
-        df.dropna(subset=["Rank", "Domain"], inplace=True)
-        df["Rank"] = df["Rank"].astype(int)
-        df["Domain"] = df["Domain"].str.strip().str.lower()
-
-        df = df[df["Rank"] <= TRANCO_THRESHOLD]
-
-        if df.empty:
-            if debug:
-                st.warning("⚠️ Tranco data loaded but no valid domains under threshold.")
-            return {}
-
-        return dict(zip(df["Domain"], df["Rank"]))
-
-    except Exception as e:
-        if debug:
-            st.error(f"❌ Failed to load or process Tranco CSV: {e}")
-        return {}
-
-def get_valid_top_domains(tranco_dict, limit=50000, allowed_tlds=(".com", ".org", ".net")):
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    sorted_domains = [d for d, _ in sorted(tranco_dict.items(), key=lambda x: x[1]) if d.endswith(allowed_tlds)]
-    results = []
-
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-
-    def is_valid(domain):
-        try:
-            try:
-                resp = requests.head(f"https://{domain}", timeout=4, allow_redirects=True)
-                if resp.status_code >= 400:
-                    return None
-            except:
-                resp = requests.get(f"https://{domain}", timeout=4, allow_redirects=True)
-                if resp.status_code >= 400:
-                    return None
-
-            if any(word in resp.text.lower() for word in ["buy this domain", "for sale", "parking", "coming soon"]):
-                return None
-
-            return domain
-        except:
-            return None
-
-    with ThreadPoolExecutor(max_workers=40) as executor:
-        futures = {executor.submit(is_valid, d): d for d in sorted_domains[:100000]}  # oversample
-        for i, future in enumerate(as_completed(futures), 1):
-            result = future.result()
-            if result:
-                results.append(result)
-
-            pct = i / 100000
-            progress_bar.progress(min(1.0, pct))
-            status_text.text(f"🔎 Validating {i}/100000 — {len(results)} passed")
-
-            if len(results) >= limit:
-                break
-
-    progress_bar.empty()
-    status_text.empty()
-    return results
-
 
 # --- STREAMLIT INTERFACE ---
 st.set_page_config(page_title="Monetization Opportunity Finder", layout="wide")
@@ -457,27 +225,20 @@ sellersjson_input = ""
 if "opportunities_table" not in st.session_state or st.session_state.opportunities_table.empty:
     st.markdown("### 📝 Enter Publisher Details")
 
-    mode = st.radio("Select Input Mode", [
-        "Live (from domain)",
-        "Manual Domains",
-        "Paste sellers.json",
-        "Top Domains (from Tranco)"
-    ])
+    mode = st.radio("Select Input Mode", ["Live (from domain)", "Manual Domains", "Paste sellers.json"])
 
-    # Handle mode selection
+# Handle invalid dual-mode selection
     if mode == "Live (from domain)":
         pub_domain = st.text_input("Publisher Domain", placeholder="example.com")
         pub_name = st.text_input("Publisher Name", placeholder="connatix.com")
         manual_domains_input = ""
         sellersjson_input = ""
-
     elif mode == "Manual Domains":
         st.info("Manual Domains Mode: Paste domains manually.")
         manual_domains_input = st.text_area("Paste domains manually (comma or newline separated)", height=100)
         pub_domain = ""
         pub_name = ""
         sellersjson_input = ""
-
     elif mode == "Paste sellers.json":
         st.info("Paste sellers.json content.")
         sellersjson_input = st.text_area("Paste sellers.json content", height=200)
@@ -485,15 +246,8 @@ if "opportunities_table" not in st.session_state or st.session_state.opportuniti
         pub_name = ""
         manual_domains_input = ""
 
-    elif mode == "Top Domains (from Tranco)":
-        st.info("Top Domains Mode: Uses top 50K domains from the Tranco list.")
-        manual_domains_input = ""
-        sellersjson_input = ""
-        pub_domain = ""
-        pub_name = ""
-
-    pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
-    sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
+pub_id = st.text_input("Publisher ID", placeholder="1536788745730056")
+sample_direct_line = st.text_input("Example ads.txt Direct Line", placeholder="connatix.com, 12345, DIRECT")
 
 # --- MAIN FUNCTIONALITY BUTTON ---
 if st.button("🔍 Find Monetization Opportunities"):
@@ -507,76 +261,134 @@ if st.button("🔍 Find Monetization Opportunities"):
 
     if not pub_id or not sample_direct_line:
         st.error("Publisher ID and Example Direct Line are required.")
-        st.stop()
+    else:
+        with st.spinner("🔎 Checking domains..."):
+            # ✅ Make sure tranco_rankings is defined in this scope
+            tranco_rankings = load_tranco_top_domains()
 
-    with st.spinner("🔎 Checking domains..."):
-        st.session_state.skipped_log = []
-        results = []
-        domains = set()
+            st.session_state.skipped_log = []
+            results = []
+            domains = set()
 
-        if mode == "Manual Domains":
-            manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
-            domains = {d.strip().lower() for d in manual_lines if d.strip()}
+            # --- DOMAIN EXTRACTION LOGIC BY MODE ---
+            if mode == "Manual Domains":
+                manual_lines = re.split(r'[\n,]+', manual_domains_input.strip())
+                domains = {d.strip().lower() for d in manual_lines if d.strip()}
 
-        elif mode == "Paste sellers.json":
-            try:
-                data = json.loads(sellersjson_input)
-                domains = {
-                    s.get("domain").strip().lower()
-                    for s in data.get("sellers", [])
-                    if s.get("domain")
-                }
-            except Exception as e:
-                st.error(f"Failed to parse sellers.json: {e}")
-                st.stop()
-
-        elif mode == "Top Domains (from Tranco)":
-            st.info("🔍 Validating Tranco domains, please wait...")
-            tranco_dict = load_tranco_top_domains()
-            domains = get_valid_top_domains(tranco_dict, limit=50000)
-
-        else:  # Live (from domain)
-            sellers_url = f"https://{pub_domain}/sellers.json"
-            try:
-                sellers_response = requests.get(sellers_url, timeout=10)
-                sellers_data = sellers_response.json()
-                if "sellers" in sellers_data:
+            elif mode == "Paste sellers.json":
+                try:
+                    data = json.loads(sellersjson_input)
                     domains = {
-                        s.get("domain").lower()
-                        for s in sellers_data["sellers"]
-                        if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
+                        s.get("domain").strip().lower()
+                        for s in data.get("sellers", [])
+                        if s.get("domain")
                     }
-                else:
-                    st.warning("No sellers field in sellers.json. Provide manual domains if needed.")
-            except Exception:
-                st.error(f"Invalid sellers.json at {sellers_url}")
+                except Exception as e:
+                    st.error(f"Failed to parse sellers.json: {e}")
+                    st.stop()
+
+            else:  # Live mode
+                sellers_url = f"https://{pub_domain}/sellers.json"
+                try:
+                    sellers_response = requests.get(sellers_url, timeout=10)
+                    sellers_data = sellers_response.json()
+                    if "sellers" in sellers_data:
+                        domains = {
+                            s.get("domain").lower()
+                            for s in sellers_data["sellers"]
+                            if s.get("domain") and s.get("domain").lower() != pub_domain.lower()
+                        }
+                    else:
+                        st.warning("No sellers field in sellers.json. Provide manual domains if needed.")
+                except Exception:
+                    st.error(f"Invalid sellers.json at {sellers_url}")
+                    st.stop()
+
+            if not domains:
+                st.error("No valid domains found to check.")
                 st.stop()
 
-        if not domains:
-            st.error("No valid domains found to check.")
-            st.stop()
+            # --- ANALYSIS ---
+            progress = st.progress(0)
+            progress_text = st.empty()
 
-        # --- CONCURRENT SCAN ---
-        df_results, skipped = concurrent_ads_scan(domains, pub_id, sample_direct_line)
+            for idx, domain in enumerate(domains, start=1):
+                try:
+                    ads_url = f"https://{domain}/ads.txt"
+                    ads_response = requests.get(ads_url, timeout=10)
+                    ads_lines = ads_response.text.splitlines()
 
-        if df_results.empty:
-            st.error("⚠️ No valid monetization opportunities were found.")
-            st.stop()
+                    has_direct = any(
+                        sample_direct_line.split(",")[0].strip().lower() in line.lower() and "direct" in line.lower()
+                        for line in ads_lines
+                    )
+                    if not has_direct:
+                        st.session_state.skipped_log.append((domain, "No direct line for publisher"))
+                        continue
 
-        st.session_state.opportunities_table = df_results
-        st.session_state.skipped_log = skipped
+                    if any(
+                        "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
+                        for line in ads_lines
+                    ):
+                        st.session_state.skipped_log.append((domain, "OMS is already buying from this publisher"))
+                        continue
 
-        key = f"{(pub_name or mode)}_{pub_id}"
-        st.session_state.setdefault("history", {})
-        st.session_state["history"][key] = {
-            "name": pub_name or mode,
-            "id": pub_id,
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "table": df_results.copy()
-        }
+                    is_oms_buyer = any(
+                        "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
+                        for line in ads_lines
+                    )
 
-        st.success("✅ Analysis complete")
-        st.balloons()
+                    if domain.lower() not in tranco_rankings:
+                        st.session_state.skipped_log.append((domain, "Not in Tranco top list"))
+                        continue
+
+                    rank = tranco_rankings[domain.lower()]
+                    results.append({
+                        "Domain": domain,
+                        "Tranco Rank": int(rank),
+                        "OMS Buying": "Yes" if is_oms_buyer else "No"
+                    })
+
+                    time.sleep(0.1)
+
+                except requests.exceptions.SSLError:
+                    st.session_state.skipped_log.append((domain, "⚠️ SSL Error: The site has an expired or invalid HTTPS certificate."))
+                except requests.exceptions.RequestException as e:
+                    st.session_state.skipped_log.append((domain, f"⚠️ Connection Error: {e}"))
+                except Exception as e:
+                    st.session_state.skipped_log.append((domain, f"⚠️ Unexpected Error: {str(e)}"))
+
+                progress.progress(idx / len(domains))
+                progress_text.text(f"Checking domain {idx}/{len(domains)}: {domain}")
+
+            # --- SAVE RESULTS TO SESSION ---
+            if not results:
+                st.error("⚠️ No valid monetization opportunities were found.")
+                st.stop()
+
+            df_results = pd.DataFrame(results)
+
+            if "Tranco Rank" not in df_results.columns:
+                st.error("⚠️ Unexpected error: 'Tranco Rank' column missing from results.")
+                st.stop()
+
+            df_results.sort_values("Tranco Rank", inplace=True)
+            st.session_state.opportunities_table = df_results
+
+            key = f"{(pub_name or 'Manual')}_{pub_id}"
+            st.session_state.setdefault("history", {})
+            st.session_state["history"][key] = {
+                "name": pub_name or "Manual Domains",
+                "id": pub_id,
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "table": df_results.copy()
+            }
+
+            progress.empty()
+            progress_text.empty()
+            st.success("✅ Analysis complete")
+            st.balloons()
+
 
 # --- RESULTS DISPLAY ---
 st.session_state.setdefault("opportunities_table", pd.DataFrame())
