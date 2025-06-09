@@ -10,6 +10,59 @@ import smtplib
 from email.message import EmailMessage
 import unicodedata
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+def concurrent_ads_scan(domains, pub_id, sample_direct_line, batch_size=5000):
+    results = []
+    skipped = []
+
+    def process(domain):
+        try:
+            ads_url = f"https://{domain}/ads.txt"
+            ads_response = requests.get(ads_url, timeout=6)
+            ads_lines = ads_response.text.splitlines()
+
+            direct_key = sample_direct_line.split(",")[0].strip().lower()
+            has_direct = any(direct_key in line.lower() and "direct" in line.lower() for line in ads_lines)
+            if not has_direct:
+                return domain, "No direct line for publisher", None
+
+            if any("onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower() for line in ads_lines):
+                return domain, "OMS is already buying from this publisher", None
+
+            is_oms_buyer = any(
+                "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
+                for line in ads_lines
+            )
+
+            return domain, None, {
+                "Domain": domain,
+                "OMS Buying": "Yes" if is_oms_buyer else "No"
+            }
+
+        except requests.exceptions.SSLError:
+            return domain, "⚠️ SSL Error", None
+        except requests.exceptions.RequestException as e:
+            return domain, f"⚠️ Connection Error: {e}", None
+        except Exception as e:
+            return domain, f"⚠️ Unexpected Error: {str(e)}", None
+
+    total = len(domains)
+    batches = [domains[i:i + batch_size] for i in range(0, total, batch_size)]
+
+    for b_idx, batch in enumerate(batches, start=1):
+        st.info(f"🔄 Scanning batch {b_idx} of {len(batches)} ({len(batch)} domains)")
+        with ThreadPoolExecutor(max_workers=40) as executor:
+            futures = {executor.submit(process, domain): domain for domain in batch}
+            for i, future in enumerate(as_completed(futures), 1):
+                domain, error, result = future.result()
+                if error:
+                    skipped.append((domain, error))
+                elif result:
+                    results.append(result)
+                st.progress(i / len(batch), text=f"Checking {domain}")
+
+    return pd.DataFrame(results), skipped
+
 
 # --- CONFIGURATION ---
 TRANCO_TOP_DOMAINS_FILE = "/tmp/top-1m.csv"
