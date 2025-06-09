@@ -55,17 +55,21 @@ def concurrent_ads_scan(domains, pub_id, sample_direct_line, batch_size=5000, re
             if not has_direct:
                 return domain, "No direct line for publisher", None
 
-            if any("onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower() for line in ads_lines):
+            is_oms_direct_with_pub = any(
+                "onlinemediasolutions.com" in line.lower() and pub_id in line and "direct" in line.lower()
+                for line in ads_lines
+            )
+            if is_oms_direct_with_pub:
                 return domain, "OMS is already buying from this publisher", None
 
-            is_oms_buyer = any(
+            is_oms_buyer_other = any(
                 "onlinemediasolutions.com" in line.lower() and pub_id not in line and "direct" in line.lower()
                 for line in ads_lines
             )
 
             return domain, None, {
                 "Domain": domain,
-                "OMS Buying": "Yes" if is_oms_buyer else "No"
+                "OMS Buying": "Yes" if is_oms_buyer_other else "No"
             }
 
         except requests.exceptions.SSLError:
