@@ -18,6 +18,8 @@ import pickle
 
 def concurrent_ads_scan(domains, pub_id, sample_direct_line, batch_size=5000, retry_failed=True, cache_dir="/tmp/ads_cache"):
     os.makedirs(cache_dir, exist_ok=True)
+    
+    domains = list(domains)  # ✅ Convert to list to support slicing
     results = []
     skipped = []
 
